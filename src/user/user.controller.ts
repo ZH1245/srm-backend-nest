@@ -6,6 +6,8 @@ import {
   Get,
   HttpException,
   Patch,
+  Post,
+  Query,
   Res,
   UseFilters,
 } from '@nestjs/common';
@@ -14,6 +16,7 @@ import {
   DeleteUserDTO,
   DisableUserDTO,
   EnableUserDTO,
+  NewUserDTO,
   User,
   VerfityEmailDTO,
   getNotCreatedUsersResult,
@@ -37,7 +40,7 @@ export class UserController {
   @Get('not-created')
   async getNotCreatedUsers(@Res() response: Response): Promise<any> {
     const result = await this.userService.getNotCreatedUsers();
-    return response.json(result);
+    return response.json({ users: result, message: 'success' });
   }
 
   /**
@@ -45,8 +48,9 @@ export class UserController {
    * @returns A Promise that resolves to an array of user objects.
    */
   @Get('created')
-  async getCreatedUsers(): Promise<any> {
-    return this.userService.getCreatedUsers();
+  async getCreatedUsers(@Res() response: Response): Promise<any> {
+    const result = await this.userService.getCreatedUsers();
+    return response.json({ users: result, message: 'success' });
   }
 
   /**
@@ -87,5 +91,21 @@ export class UserController {
   @Patch('delete-user')
   async deleteUser(@Body() body: DeleteUserDTO): Promise<{ message: string }> {
     return this.userService.deleteUser(body);
+  }
+  @Get('query')
+  async getUserByQueryParams(@Query() query: any, @Res() response: Response) {
+    const result = await this.userService.getUserByQueryParams(query);
+    return response.json(result);
+  }
+  @Post('new-user')
+  async createNewUser(
+    @Body() body: NewUserDTO,
+    @Res() response: Response,
+  ): Promise<Response<{ message: string }>> {
+    console.log(body);
+    const result: { message: string } = await this.userService.createNewUser(
+      body,
+    );
+    return response.json({ message: result.message });
   }
 }

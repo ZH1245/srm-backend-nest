@@ -17,3 +17,11 @@ export type VerfityEmailDTO = { email: string; id: string; OTPCODE: string };
 export type DisableUserDTO = { EMAIL: string; ID: string };
 export type EnableUserDTO = { EMAIL: string; ID: string };
 export type DeleteUserDTO = { EMAIL: string; ID: string };
+export type NewUserDTO = {
+  ROLE: string;
+  MOBILE: string;
+  CODE: string;
+  EMAIL: string;
+  NAME: string;
+  PASSWORD: string;
+};

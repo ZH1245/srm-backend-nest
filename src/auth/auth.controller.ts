@@ -1,13 +1,18 @@
-import { Controller, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Patch, Post, Res } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { LoginDTO } from './type';
+import { Response } from 'express';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
-  async login() {
-    return this.authService.login();
+  async login(@Body() body: LoginDTO, @Res() res: Response) {
+    console.log(body);
+    const result = await this.authService.login(body);
+    res.cookie('auth', result.token, { httpOnly: true, sameSite: 'strict' });
+    return res.json(result);
   }
 
   @Post('register')

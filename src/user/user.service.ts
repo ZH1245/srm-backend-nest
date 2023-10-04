@@ -1,10 +1,12 @@
 import { HttpException, Injectable } from '@nestjs/common';
 import { Result } from 'odbc';
+import { sign } from 'jsonwebtoken';
+import { genSalt, hash } from 'bcryptjs';
 import {
   DeleteUserDTO,
   DisableUserDTO,
   EnableUserDTO,
-  getNotCreatedUsersResult,
+  NewUserDTO,
 } from './type';
 
 @Injectable()
@@ -18,7 +20,7 @@ export class UserService {
    */
   async getNotCreatedUsers() {
     const result = await global.connection.query(`
-        SELECT "E_Mail"  AS "EMAIL", "CardName" AS "NAME", "CardCode" AS "CODE","Cellular" AS "MOBILE" FROM "OCRD" WHERE "E_Mail" IS NOT NULL AND "E_Mail" NOT IN (SELECT "EMAIL" FROM "SRMUSERS");
+        SELECT * FROM "VW_NOTSRMUSERS"
       `);
     if (result.count !== 0) {
       return result;
@@ -26,14 +28,13 @@ export class UserService {
       throw new HttpException('No users found', 404);
     }
   }
-
   /**
    * Retrieves a list of users who have already been created.
    * @returns A string indicating the operation performed.
    */
   async getCreatedUsers() {
     const result = await global.connection.query(`
-        SELECT "NAME", "EMAIL","ROLE","ISACTIVE","ISVERIFIED" FROM "SRMUSERS";
+        SELECT "NAME", "EMAIL","ROLE","ISACTIVE","ISVERIFIED","CODE","MOBILE" FROM "SRMUSERS";
       `);
     if (result.count !== 0) {
       return result;
@@ -112,5 +113,29 @@ export class UserService {
     } else {
       throw new HttpException('No users found', 404);
     }
+  }
+  async getUserByQueryParams(query: any) {
+    const result = await global.connection.query(`
+    SELECT "NAME", "EMAIL","ROLE","ISACTIVE","ISVERIFIED" FROM "SRMUSERS" WHERE "NAME" LIKE '%${query.name}%' AND "EMAIL" LIKE '%${query.email}%' AND "ROLE" LIKE '%${query.role}%' AND "ISACTIVE" LIKE '%${query.isactive}%' AND "ISVERIFIED" LIKE '%${query.isverified}%';
+  `);
+    return result;
+  }
+  async createNewUser(body: NewUserDTO): Promise<{ message: string }> {
+    // const salt = await genSalt(10);
+    // const hashedPassword = await hash(body.PASSWORD, salt);
+    const result = await global.connection
+      .query(
+        `
+    INSERT INTO "SRMUSERS" ("NAME","EMAIL","ROLE","MOBILE","PASSWORD","CODE") VALUES ('${body.NAME}','${body.EMAIL}','${body.ROLE}','${body.MOBILE}','${body.PASSWORD}','${body.CODE}');
+  `,
+      )
+      .then(() => {
+        return { message: 'User created successfully' };
+      })
+      .catch((e) => {
+        console.log(e);
+        throw new HttpException(e.message || 'Error Creating User', 400);
+      });
+    return result;
   }
 }
