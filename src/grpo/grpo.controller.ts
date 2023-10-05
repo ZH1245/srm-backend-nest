@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Head,
@@ -7,11 +8,20 @@ import {
   Post,
   Req,
   Res,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
 import { GrpoService } from './grpo.service';
 import { UserDashboard } from 'src/dashboard/dashboard.controller';
 import { Request, Response } from 'express';
+import { writeFile } from 'fs/promises';
 import { JwtPayload } from 'jsonwebtoken';
+import {
+  AnyFilesInterceptor,
+  FilesInterceptor,
+} from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { CreateGrpoPayload } from './types';
 
 @Controller('grpo')
 export class GrpoController {
@@ -37,8 +47,14 @@ export class GrpoController {
   }
 
   @Post('create-my-grpo')
-  async createMyGrpo() {
-    return this.grpoService.createMyGrpo();
+  //   @UseInterceptors(AnyFilesInterceptor())
+  @UseInterceptors(AnyFilesInterceptor())
+  async createMyGrpo(
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() body: CreateGrpoPayload,
+  ) {
+    const result = await this.grpoService.createMyGrpo(files, body);
+    return result;
   }
 
   @Patch('mark-grpo-as-ready')

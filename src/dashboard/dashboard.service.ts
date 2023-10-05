@@ -19,6 +19,14 @@ export class DashboardService {
     return counts;
   }
   async getAdminDashboard() {
-    return 'admin-dashboard';
+    const counts = { users: 0, readyGrpos: 0, completedGrpos: 0 };
+    const result: Result<{ COUNT: string }> = await global.connection.query(`
+      SELECT COUNT("ID") AS "COUNT" FROM "SRMUSERS"`);
+    if (result.count !== 0) {
+      counts.users = JSON.parse(result[0].COUNT);
+    } else {
+      counts.users = 0;
+    }
+    return counts;
   }
 }

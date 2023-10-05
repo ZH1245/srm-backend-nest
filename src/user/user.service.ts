@@ -7,6 +7,7 @@ import {
   DisableUserDTO,
   EnableUserDTO,
   NewUserDTO,
+  User,
 } from './type';
 
 @Injectable()
@@ -34,7 +35,7 @@ export class UserService {
    */
   async getCreatedUsers() {
     const result = await global.connection.query(`
-        SELECT "NAME", "EMAIL","ROLE","ISACTIVE","ISVERIFIED","CODE","MOBILE" FROM "SRMUSERS";
+        SELECT "ID","NAME", "EMAIL","ROLE","ISACTIVE","ISVERIFIED","CODE","MOBILE" FROM "SRMUSERS";
       `);
     if (result.count !== 0) {
       return result;
@@ -123,19 +124,46 @@ export class UserService {
   async createNewUser(body: NewUserDTO): Promise<{ message: string }> {
     // const salt = await genSalt(10);
     // const hashedPassword = await hash(body.PASSWORD, salt);
-    const result = await global.connection
-      .query(
-        `
+    const existingUser = await global.connection.query(`
+    SELECT "EMAIL" FROM "SRMUSERS" WHERE "EMAIL" = '${body.EMAIL}'  ;
+    `);
+    if (existingUser.count !== 0) {
+      throw new HttpException('User already exists with same Email', 400);
+    } else {
+      const result = await global.connection
+        .query(
+          `
     INSERT INTO "SRMUSERS" ("NAME","EMAIL","ROLE","MOBILE","PASSWORD","CODE") VALUES ('${body.NAME}','${body.EMAIL}','${body.ROLE}','${body.MOBILE}','${body.PASSWORD}','${body.CODE}');
   `,
-      )
-      .then(() => {
-        return { message: 'User created successfully' };
-      })
-      .catch((e) => {
-        console.log(e);
-        throw new HttpException(e.message || 'Error Creating User', 400);
-      });
-    return result;
+        )
+        .then(() => {
+          return { message: 'User created successfully' };
+        })
+        .catch((e) => {
+          console.log(e);
+          throw new HttpException(e.message || 'Error Creating User', 400);
+        });
+      return result;
+    }
+  }
+  async EditUser(
+    body: User & {
+      ROLE: 'admin' | 'user';
+      CODE: string;
+    },
+  ) {
+    const result = await global.connection.query(` 
+    UPDATE "SRMUSERS" 
+      SET 
+      "NAME" = '${body.NAME}', 
+      "EMAIL" = '${body.EMAIL}', 
+      "ROLE" = '${body.ROLE}', 
+      "MOBILE" = '${body.MOBILE}', 
+      "CODE" = '${body.CODE}',
+      "ISACTIVE" = ${body.ISACTIVE === '1' ? true : false} 
+      WHERE "ID" = ${body.ID};
+    `);
+    if (result.count !== 0) return { message: 'User updated successfully' };
+    else throw new HttpException('No users found', 404);
   }
 }

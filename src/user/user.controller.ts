@@ -7,6 +7,7 @@ import {
   HttpException,
   Patch,
   Post,
+  Put,
   Query,
   Res,
   UseFilters,
@@ -106,6 +107,14 @@ export class UserController {
     const result: { message: string } = await this.userService.createNewUser(
       body,
     );
+    return response.json({ message: result.message });
+  }
+  @Put('edit-user')
+  async EditUser(
+    @Body() body: User & { ROLE: 'user' | 'admin'; CODE: string },
+    @Res() response: Response,
+  ) {
+    const result = await this.userService.EditUser(body);
     return response.json({ message: result.message });
   }
 }

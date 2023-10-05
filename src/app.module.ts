@@ -16,6 +16,7 @@ import { GrpoController } from './grpo/grpo.controller';
 
 import { GrpoModule } from './grpo/grpo.module';
 import { AuthMiddleware } from './auth/auth.middleware';
+import { AdminMiddleware } from './middlewares/AdminMiddleware';
 @Module({
   imports: [
     UserModule,
@@ -41,6 +42,20 @@ import { AuthMiddleware } from './auth/auth.middleware';
 })
 export class AppModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(AuthMiddleware).exclude('auth/login').forRoutes('*');
+    consumer
+      .apply(AuthMiddleware)
+      .exclude('auth/login')
+      .forRoutes('*')
+      .apply(AdminMiddleware)
+      .forRoutes(
+        'dashboard/admin',
+        'user/created',
+        'user/not-created',
+        'user/disable-user',
+        'user/enable-user',
+        'user/delete-user',
+        'user/edit-user',
+        'user/edit-user',
+      );
   }
 }

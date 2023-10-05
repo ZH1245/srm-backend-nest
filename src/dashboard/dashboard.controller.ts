@@ -33,6 +33,6 @@ export class DashboardController {
   @Get('admin')
   async getAdminDashboard(@Res() res: Response) {
     const result = await this.dashboardService.getAdminDashboard();
-    return res.json(result);
+    return res.json({ data: result });
   }
 }

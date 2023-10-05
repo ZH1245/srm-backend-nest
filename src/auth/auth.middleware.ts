@@ -14,14 +14,14 @@ export class AuthMiddleware implements NestMiddleware {
       const token = authorization.split(' ')[1];
       verify(token, process.env.JWT_SECRET, (err, decoded) => {
         if (err) {
-          console.log(err);
+          console.log({ ...err });
 
           if (err.name === 'TokenExpiredError') {
-            throw new HttpException('Session Expired. Login Again', 401);
+            throw new HttpException('Session Expired. Login Again', 403);
           } else if (err.name === 'JsonWebTokenError') {
-            throw new HttpException('Invalid Auth Header', 401);
+            throw new HttpException('Invalid Auth Header', 403);
           } else {
-            throw new HttpException('UnAuthorized', 401);
+            throw new HttpException('UnAuthorized', 403);
           }
           //   return res.status(401).json({ message: 'Invalid Token' });
         } else {
@@ -31,7 +31,7 @@ export class AuthMiddleware implements NestMiddleware {
         }
       });
     } else {
-      throw new HttpException('UnAuthorized', 401);
+      throw new HttpException('UnAuthorized', 403);
     }
   }
 }

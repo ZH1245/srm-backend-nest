@@ -12,22 +12,33 @@ export class AuthService {
     const doesEmailContainSQL = validateSQL(EMAIL);
     const doesPasswordContainSQL = validateSQL(PASSWORD);
     if (!doesEmailContainSQL && !doesPasswordContainSQL) {
-      const result: Result<UserDashboard & { PASSWORD: string }> = await global
-        .connection.query(`
+      const result: Result<
+        UserDashboard & {
+          PASSWORD: string;
+          ISACTIVE: '0' | '1';
+          ISVERIFIED: '0' | '1';
+        }
+      > = await global.connection.query(`
             Select * FROM "SRMUSERS" WHERE "EMAIL" = '${body.EMAIL}';
         `);
       if (result.count !== 0) {
         if (result[0].PASSWORD === body.PASSWORD) {
-          const { CODE, EMAIL, NAME, ROLE } = result[0];
-          //   sign jwt token
-          const token = sign(
-            { CODE, EMAIL, NAME, ROLE },
-            process.env.JWT_SECRET,
-            {
-              expiresIn: '30m',
-            },
-          );
-          return { token };
+          if (result[0].ISACTIVE === '0')
+            throw new HttpException('User Not Active', 400);
+          if (result[0].ISVERIFIED === '0')
+            throw new HttpException('Email Not Verified', 400);
+          if (result[0].ISACTIVE === '1' && result[0].ISVERIFIED === '1') {
+            const { CODE, EMAIL, NAME, ROLE, ISACTIVE, ISVERIFIED } = result[0];
+            //   sign jwt token
+            const token = sign(
+              { CODE, EMAIL, NAME, ROLE },
+              process.env.JWT_SECRET,
+              {
+                expiresIn: '30m',
+              },
+            );
+            return { token };
+          }
           //   return { token };
         } else {
           throw new HttpException('Invalid Credentials', 400);

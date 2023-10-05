@@ -4,7 +4,7 @@ export type User = {
   PASSWORD: string;
   NAME: string;
   MOBILE: string;
-  ISACTIVE: boolean;
+  ISACTIVE: boolean | number | '0' | '1';
   ISVERIFIED: boolean;
 };
 export type getNotCreatedUsersResult = {
