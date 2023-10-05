@@ -42,8 +42,9 @@ export class GrpoController {
   }
 
   @Get('my-ready-grpos')
-  async getMyReadyGrpos() {
-    return this.grpoService.getMyReadyGrpos();
+  async getMyReadyGrpos(@Req() req: { user?: UserDashboard }) {
+    const user = req.user;
+    return this.grpoService.getMyReadyGrpos(user);
   }
 
   @Post('create-my-grpo')
@@ -52,8 +53,10 @@ export class GrpoController {
   async createMyGrpo(
     @UploadedFiles() files: Express.Multer.File[],
     @Body() body: CreateGrpoPayload,
+    @Req() req: Request & { user?: UserDashboard },
   ) {
-    const result = await this.grpoService.createMyGrpo(files, body);
+    const user = req.user;
+    const result = await this.grpoService.createMyGrpo(user, files, body);
     return result;
   }
 
