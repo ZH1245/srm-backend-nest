@@ -4,6 +4,8 @@ import {
   Get,
   Head,
   Headers,
+  HttpException,
+  Param,
   Patch,
   Post,
   Req,
@@ -46,6 +48,19 @@ export class GrpoController {
     const user = req.user;
     return this.grpoService.getMyReadyGrpos(user);
   }
+  @Get('my-ready-grpos/:id')
+  async getMyReadyGrposByDocEntry(
+    @Req() req: { user?: UserDashboard },
+    @Param('id') id: string,
+  ) {
+    const user = req.user;
+
+    if (id && id !== 'undefined' && id !== 'null') {
+      return this.grpoService.getMyReadyGrposByDocEntry(user, id);
+    } else {
+      throw new HttpException('Invalid DocEntry', 400);
+    }
+  }
 
   @Post('create-my-grpo')
   //   @UseInterceptors(AnyFilesInterceptor())
@@ -67,5 +82,20 @@ export class GrpoController {
   @Patch('mark-grpo-as-completed')
   async markGrpoAsCompleted() {
     return this.grpoService.markGrpoAsCompleted();
+  }
+  @Get('download-attachment/:id')
+  async downloadAttachment(@Param('id') id: string, @Res() res: Response) {
+    const result: { data: any; ATTACHMENTNAME: string } =
+      await this.grpoService.downloadAttachment(id);
+    if (result) {
+      res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename=${result.ATTACHMENTNAME}`,
+      );
+      return res.send(result.data);
+    } else {
+      throw new HttpException('Invalid Attachment', 400);
+    }
   }
 }

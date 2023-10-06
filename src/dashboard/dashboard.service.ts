@@ -16,6 +16,22 @@ export class DashboardService {
     } else {
       counts.pending = 0;
     }
+    const readyPO: Result<{ COUNT: string }> = await global.connection.query(`
+    SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" ='${authUser.CODE}' AND "STATUS" = 'ready'; 
+    `);
+    if (readyPO.count !== 0) {
+      counts.ready = JSON.parse(readyPO[0].COUNT);
+    } else {
+      counts.ready = 0;
+    }
+    const completed: Result<{ COUNT: string }> = await global.connection.query(`
+    SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" ='${authUser.CODE}' AND "STATUS" = 'completed';
+    `);
+    if (completed.count !== 0) {
+      counts.completed = JSON.parse(completed[0].COUNT);
+    } else {
+      counts.completed = 0;
+    }
     return counts;
   }
   async getAdminDashboard() {

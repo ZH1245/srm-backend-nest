@@ -1,6 +1,8 @@
 import { HttpException, Injectable } from '@nestjs/common';
-import { writeFile } from 'fs/promises';
+import { writeFile, readFile } from 'fs/promises';
+
 import { Result } from 'odbc';
+import path from 'path';
 import { UserDashboard } from 'src/dashboard/dashboard.controller';
 import { validateSQL } from 'src/utils/checkSQL';
 export type DataProps = {
@@ -13,6 +15,8 @@ export type DataProps = {
   'Item Dsc': string;
   'Bill#': string;
   BillDate: string;
+  LineNum: number;
+  'GRPO#': number;
 };
 @Injectable()
 export class GrpoService {
@@ -28,10 +32,13 @@ export class GrpoService {
         TO_DATE(P1."ShipDate") AS "ShipDate",
         P1."ItemCode",P1."Dscription" AS "Item Dsc", 
         P."U_BLNo" AS "Bill#", 
+        P1."LineNum" AS "LineNum",
+        P."DocNum" AS "GRPO#",
         P."U_BLDate" AS "BillDate" 
       FROM "PDN1" P1
       INNER JOIN "OPDN" P on P1."DocEntry" = P."DocEntry" AND P."CardCode" = '${me.CODE}'
       INNER JOIN "OPOR" PR ON TO_VARCHAR(PR."DocNum") = TO_VARCHAR(P1."BaseRef")
+      
 `);
       if (result.count !== 0) {
         return result;
@@ -47,10 +54,35 @@ export class GrpoService {
   }
   async getMyReadyGrpos(user: UserDashboard) {
     const result = await global.connection.query(`
-    SELECT * FROM "SRM_OGRPO" WHERE "VENDORCODE" ='${user.CODE}' AND "STATUS" = 'ready'; 
+    SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" WHERE "VENDORCODE" ='${user.CODE}' AND "STATUS" = 'ready'; 
     `);
     if (result.count !== 0) {
       return { data: result, message: 'Fetched' };
+    } else {
+      return { data: [], message: 'No GRPOs found' };
+    }
+  }
+  async getMyReadyGrposByDocEntry(user: UserDashboard, id: string) {
+    const result = { header: null, items: null, attachments: null };
+
+    const header = await global.connection.query(`
+    SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 WHERE T0."VENDORCODE" ='${user.CODE}' AND "STATUS" = 'ready' AND T0."DOCENTRY" = '${id}'; 
+    `);
+    if (header.count !== 0) {
+      result.header = header;
+      const items = await global.connection.query(`
+      SELECT "DOCENTRY","LINEID","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","RECEIVEDQTY","BILLQTY" FROM "SRM_GRPO1" T0 WHERE T0."DOCENTRY" = '${id}'; 
+      `);
+      if (items.count !== 0) {
+        result.items = items;
+      }
+      const attachments = await global.connection.query(`
+      SELECT "ID","DOCENTRY","ATTACHMENTNAME","LINK" FROM "SRM_GRPO2" T0 WHERE T0."DOCENTRY" = '${id}'; 
+      `);
+      if (attachments.count !== 0) {
+        result.attachments = attachments;
+      }
+      return { data: result };
     } else {
       return { data: [], message: 'No GRPOs found' };
     }
@@ -79,23 +111,17 @@ export class GrpoService {
         const result = await global.connection
           .query(
             `
-            INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS) VALUES ('${DocEntry}', ${BILLNO}, ${BILLDATE}, '${user.CODE}', '${body.STATUS}');
+            INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS) VALUES ('${DocEntry}', '${BILLNO}', '${BILLDATE}', '${user.CODE}', '${body.STATUS}');
             `,
           )
           .then(async () => {
             await new Promise(async (res, rej) => {
               let count = 0;
-              await GrpoItems.forEach(async (item, index) => {
+              await GrpoItems.forEach(async (item) => {
                 const itemInsert = await global.connection
                   .query(
                     `
-                    INSERT INTO SRM_GRPO1 (DOCENTRY, LINEID, PONO, PODATE, ITEMCODE, ITEMDSC, SHIPDATE, RECEIVEDQTY, BILLQTY) VALUES ('${DocEntry}', '${
-                      index + 1
-                    }', '${item['PO#']}', '${item.DocDate}', '${
-                      item.ItemCode
-                    }', '${item['Item Dsc']}', '${item.ShipDate}', '${
-                      item.ReceivedQty
-                    }', '${item.BillQty}');
+                    INSERT INTO SRM_GRPO1 (DOCENTRY, LINEID, PONO, GRPONO ,PODATE, ITEMCODE, ITEMDSC, SHIPDATE, RECEIVEDQTY, BILLQTY) VALUES ('${DocEntry}', '${item.LineNum}', '${item['PO#']}', '${item['GRPO#']}', '${item.DocDate}', '${item.ItemCode}', '${item['Item Dsc']}', '${item.ShipDate}', '${item.ReceivedQty}', '${item.BillQty}');
               `,
                   )
                   .then(() => {
@@ -183,5 +209,28 @@ export class GrpoService {
   }
   async markGrpoAsCompleted() {
     return 'marked as completed';
+  }
+  async downloadAttachment(
+    id: string,
+  ): Promise<{ data: any; ATTACHMENTNAME: string }> {
+    const result: Result<{ LINK: string; ATTACHMENTNAME: string }> =
+      await global.connection.query(`
+    SELECT "LINK","ATTACHMENTNAME" FROM "SRM_GRPO2" WHERE "ID" = '${id}';
+    `);
+    if (result.count !== 0) {
+      const filePath =
+        result[0].LINK + String(result[0]['ATTACHMENTNAME']).trim();
+      return await readFile(filePath)
+        .then((data) => {
+          // console.log(data);
+          // return res.send(data);
+          return { data: data, ATTACHMENTNAME: result[0]['ATTACHMENTNAME'] };
+        })
+        .catch((e) => {
+          throw new HttpException(e.message, 500);
+        });
+    } else {
+      throw new HttpException('No Attachments found', 404);
+    }
   }
 }
