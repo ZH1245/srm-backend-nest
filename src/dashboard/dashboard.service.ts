@@ -35,13 +35,22 @@ export class DashboardService {
     return counts;
   }
   async getAdminDashboard() {
-    const counts = { users: 0, readyGrpos: 0, completedGrpos: 0 };
+    const counts = { users: 0, defectedReceipts: 0, completedGrpos: 0 };
     const result: Result<{ COUNT: string }> = await global.connection.query(`
       SELECT COUNT("ID") AS "COUNT" FROM "SRMUSERS"`);
     if (result.count !== 0) {
       counts.users = JSON.parse(result[0].COUNT);
     } else {
       counts.users = 0;
+    }
+
+    const completed: Result<{ COUNT: string }> = await global.connection.query(`
+        SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = 'completed';
+    `);
+    if (completed.count !== 0) {
+      counts.completedGrpos = JSON.parse(completed[0].COUNT);
+    } else {
+      counts.completedGrpos = 0;
     }
     return counts;
   }

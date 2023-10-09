@@ -1,4 +1,5 @@
 // ----------------------------------------------------------------------------
+import * as moment from 'moment';
 import { connect } from 'odbc';
 // -----------------------------------------------------------------------
 
@@ -17,7 +18,9 @@ const db_name = process.env.hana_dbname;
 /**
  * The schema for the database.
  */
-const schema = process.env.hana_schema_development;
+// const schema = process.env.hana_schema_development;
+const schema =
+  'CURRENTSCHEMA=TESTDFL' + moment().format('DDMMYYYY').toString() + ';';
 /**
  * The username for the database.
  */

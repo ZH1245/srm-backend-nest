@@ -49,8 +49,15 @@ export class GrpoService {
       throw new HttpException('Invalid Code', 400);
     }
   }
-  async getMyCompletedGrpos() {
-    return 'completed';
+  async getMyCompletedGrpos(user: UserDashboard) {
+    const result = await global.connection.query(`
+    SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" WHERE "VENDORCODE" ='${user.CODE}' AND "STATUS" = 'completed'; 
+    `);
+    if (result.count !== 0) {
+      return { data: result, message: 'Fetched' };
+    } else {
+      return { data: [], message: 'No GRPOs found' };
+    }
   }
   async getMyReadyGrpos(user: UserDashboard) {
     const result = await global.connection.query(`
@@ -67,6 +74,32 @@ export class GrpoService {
 
     const header = await global.connection.query(`
     SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 WHERE T0."VENDORCODE" ='${user.CODE}' AND "STATUS" = 'ready' AND T0."DOCENTRY" = '${id}'; 
+    `);
+    if (header.count !== 0) {
+      result.header = header;
+      const items = await global.connection.query(`
+      SELECT "DOCENTRY","LINEID","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","RECEIVEDQTY","BILLQTY" FROM "SRM_GRPO1" T0 WHERE T0."DOCENTRY" = '${id}'; 
+      `);
+      if (items.count !== 0) {
+        result.items = items;
+      }
+      const attachments = await global.connection.query(`
+      SELECT "ID","DOCENTRY","ATTACHMENTNAME","LINK" FROM "SRM_GRPO2" T0 WHERE T0."DOCENTRY" = '${id}'; 
+      `);
+      if (attachments.count !== 0) {
+        result.attachments = attachments;
+      }
+      return { data: result };
+    } else {
+      return { data: [], message: 'No GRPOs found' };
+    }
+  }
+
+  async getMyCompletedGrposByDocEntry(user: UserDashboard, id: string) {
+    const result = { header: null, items: null, attachments: null };
+
+    const header = await global.connection.query(`
+    SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 WHERE T0."VENDORCODE" ='${user.CODE}' AND "STATUS" = 'completed' AND T0."DOCENTRY" = '${id}'; 
     `);
     if (header.count !== 0) {
       result.header = header;
@@ -231,6 +264,44 @@ export class GrpoService {
         });
     } else {
       throw new HttpException('No Attachments found', 404);
+    }
+  }
+  async getAllInvoicesFromGrpos(user: UserDashboard) {
+    if (user.ROLE !== 'admin') {
+      throw new HttpException('Unauthorized', 401);
+    } else {
+      const result = await global.connection.query(`
+      SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO"; 
+      `);
+      if (result.count !== 0) {
+        return { data: result, message: 'Fetched' };
+      } else {
+        return { data: [], message: 'No GRPOs found' };
+      }
+    }
+  }
+  async getInvoiceDetails(user: UserDashboard, id: string) {
+    const result = { header: null, items: null, attachments: null };
+    const header = await global.connection.query(`
+    SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 WHERE T0."DOCENTRY" = '${id}'; 
+    `);
+    if (header.count !== 0) {
+      result.header = header;
+      const items = await global.connection.query(`
+      SELECT "DOCENTRY","LINEID","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","RECEIVEDQTY","BILLQTY" FROM "SRM_GRPO1" T0 WHERE T0."DOCENTRY" = '${id}'; 
+      `);
+      if (items.count !== 0) {
+        result.items = items;
+      }
+      const attachments = await global.connection.query(`
+      SELECT "ID","DOCENTRY","ATTACHMENTNAME","LINK" FROM "SRM_GRPO2" T0 WHERE T0."DOCENTRY" = '${id}'; 
+      `);
+      if (attachments.count !== 0) {
+        result.attachments = attachments;
+      }
+      return { data: result };
+    } else {
+      return { data: [], message: 'No GRPOs found' };
     }
   }
 }

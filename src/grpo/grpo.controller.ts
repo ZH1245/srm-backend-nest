@@ -22,7 +22,6 @@ import {
   AnyFilesInterceptor,
   FilesInterceptor,
 } from '@nestjs/platform-express';
-import { diskStorage } from 'multer';
 import { CreateGrpoPayload } from './types';
 
 @Controller('grpo')
@@ -39,8 +38,12 @@ export class GrpoController {
   }
 
   @Get('my-completed-grpos')
-  async getMyCompletedGrpos() {
-    return this.grpoService.getMyCompletedGrpos();
+  async getMyCompletedGrpos(
+    @Req() req: { user?: UserDashboard },
+    @Res() res: Response,
+  ) {
+    const result = await this.grpoService.getMyCompletedGrpos(req.user);
+    return res.json({ data: result.data, message: result.message });
   }
 
   @Get('my-ready-grpos')
@@ -57,6 +60,19 @@ export class GrpoController {
 
     if (id && id !== 'undefined' && id !== 'null') {
       return this.grpoService.getMyReadyGrposByDocEntry(user, id);
+    } else {
+      throw new HttpException('Invalid DocEntry', 400);
+    }
+  }
+  @Get('my-completed-grpos/:id')
+  async getMyCompletedGrposByDocEntry(
+    @Req() req: { user?: UserDashboard },
+    @Param('id') id: string,
+  ) {
+    const user = req.user;
+
+    if (id && id !== 'undefined' && id !== 'null') {
+      return this.grpoService.getMyCompletedGrposByDocEntry(user, id);
     } else {
       throw new HttpException('Invalid DocEntry', 400);
     }
@@ -97,5 +113,25 @@ export class GrpoController {
     } else {
       throw new HttpException('Invalid Attachment', 400);
     }
+  }
+
+  @Get('all-invoices-grpos')
+  async getAllInvoicesFromGrpos(
+    @Req() req: { user?: UserDashboard },
+    @Res() res: Response,
+  ) {
+    const user = req.user;
+    const result = await this.grpoService.getAllInvoicesFromGrpos(user);
+    return res.json({ data: result.data, message: result.message });
+  }
+  @Get('all-invoices-grpos/:id')
+  async getInvoiceDetails(
+    @Req() req: { user?: UserDashboard },
+    @Res() res: Response,
+    @Param('id') id: string,
+  ) {
+    const user = req.user;
+    const result = await this.grpoService.getInvoiceDetails(user, id);
+    return res.json({ data: result.data, message: result.message });
   }
 }

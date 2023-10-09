@@ -28,6 +28,7 @@
     "bcryptjs": "^2.4.3",
     "joi": "^17.10.2",
     "jsonwebtoken": "^9.0.2",
+    "moment": "^2.29.4",
     "odbc": "^2.4.8",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.8.1"

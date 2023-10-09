@@ -56,6 +56,8 @@ export class AppModule {
         'user/delete-user',
         'user/edit-user',
         'user/edit-user',
+        'grpo/all-invoices-grpos',
+        'grpo/all-invoices-grpos/:id',
       );
   }
 }
