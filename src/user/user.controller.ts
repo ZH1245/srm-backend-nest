@@ -5,6 +5,7 @@ import {
   ExceptionFilter,
   Get,
   HttpException,
+  Param,
   Patch,
   Post,
   Put,
@@ -72,8 +73,10 @@ export class UserController {
   @Patch('disable-user')
   async disableUser(
     @Body() body: DisableUserDTO,
-  ): Promise<{ message: string }> {
-    return this.userService.disableUser(body);
+    @Res() res: Response,
+  ): Promise<Response<{ message: string }>> {
+    const result = await this.userService.disableUser(body);
+    return res.json({ message: result.message });
   }
 
   /**
@@ -81,8 +84,12 @@ export class UserController {
    * @returns A Promise that resolves to a boolean indicating whether the user was enabled successfully.
    */
   @Patch('enable-user')
-  async enableUser(@Body() body: EnableUserDTO): Promise<{ message: string }> {
-    return this.userService.enableUser(body);
+  async enableUser(
+    @Body() body: EnableUserDTO,
+    @Res() res: Response,
+  ): Promise<Response<{ message: string; data: boolean }>> {
+    const result = await this.userService.enableUser(body);
+    return res.json({ message: result.message });
   }
 
   /**
@@ -115,6 +122,29 @@ export class UserController {
     @Res() response: Response,
   ) {
     const result = await this.userService.EditUser(body);
+    return response.json({ message: result.message });
+  }
+  @Get('me/:id')
+  async getMe(@Param('id') id: any, @Res() response: Response) {
+    const result = await this.userService.getMyDetails(id);
+    return response.json({
+      data: result,
+      message: 'Profile fetched successfully',
+    });
+  }
+  @Put('update-user')
+  async updateUser(
+    @Body()
+    body: {
+      EMAIL: string;
+      NAME: string;
+      PASSWORD: string;
+      MOBILE: string;
+      ID: string;
+    },
+    @Res() response: Response,
+  ) {
+    const result = await this.userService.updateUser(body);
     return response.json({ message: result.message });
   }
 }

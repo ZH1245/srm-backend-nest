@@ -11,7 +11,7 @@ export class AdminMiddleware implements NestMiddleware {
     next: (error?: any) => void,
   ) {
     const user = req.user;
-    console.log(user);
+    // console.log(user);
     if (user?.ROLE !== 'admin') {
       throw new HttpException('UnAuthorized', 401);
     } else next();

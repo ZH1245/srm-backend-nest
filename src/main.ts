@@ -8,6 +8,7 @@ async function bootstrap() {
     rawBody: true,
     bodyParser: false,
   });
+
   app.use(urlencoded({ extended: true }));
   app.use(json({ limit: '50mb' }));
   await app.listen(PORT);

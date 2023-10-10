@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthController } from './auth/auth.controller';
@@ -44,8 +44,13 @@ export class AppModule {
   configure(consumer: MiddlewareConsumer) {
     consumer
       .apply(AuthMiddleware)
-      .exclude('auth/login')
-      .forRoutes('*')
+      .exclude(
+        '/auth/login',
+        '/auth/generate-otp/:email',
+        '/auth/verify-otp-password',
+      )
+      .forRoutes('*');
+    consumer
       .apply(AdminMiddleware)
       .forRoutes(
         'dashboard/admin',

@@ -77,7 +77,7 @@ export class UserService {
    */
   async disableUser(body: DisableUserDTO) {
     const result = await global.connection.query(`
-        UPDATE "SRMUSERS" SET "ISACTIVE" = 0 WHERE "EMAIL" = ${body.EMAIL} AND "ID" = ${body.ID};
+        UPDATE "SRMUSERS" SET "ISACTIVE" = false WHERE "ID" = '${body.ID}';
     `);
     if (result.count !== 0) {
       return { message: 'User disabled successfully' };
@@ -92,7 +92,7 @@ export class UserService {
    */
   async enableUser(body: EnableUserDTO) {
     const result = await global.connection.query(`
-        UPDATE "SRMUSERS" SET "ISACTIVE" = 0 WHERE "EMAIL" = ${body.EMAIL} AND "ID" = ${body.ID};
+        UPDATE "SRMUSERS" SET "ISACTIVE" = true WHERE "ID" = '${body.ID}';
     `);
     if (result.count !== 0) {
       return { message: 'User enabled successfully' };
@@ -107,7 +107,7 @@ export class UserService {
    */
   async deleteUser(body: DeleteUserDTO) {
     const result = await global.connection.query(`
-        DELETE FROM "SRMUSERS" WHERE "EMAIL" = ${body.EMAIL} AND "ID" = ${body.ID};
+        DELETE FROM "SRMUSERS" WHERE "ID" = '${body.ID}';
     `);
     if (result.count !== 0) {
       return { message: 'User deleted successfully' };
@@ -165,5 +165,42 @@ export class UserService {
     `);
     if (result.count !== 0) return { message: 'User updated successfully' };
     else throw new HttpException('No users found', 404);
+  }
+  async getMyDetails(id: string) {
+    const result = await global.connection.query(`
+    SELECT "NAME", "EMAIL","MOBILE" FROM "SRMUSERS" WHERE "ID" = '${id}';
+  `);
+    if (result.count !== 0) return result[0];
+    else throw new HttpException('No users found', 404);
+  }
+  async updateUser(payload: {
+    EMAIL: string;
+    NAME: string;
+    MOBILE: string;
+    PASSWORD: string;
+    ID: string;
+  }) {
+    try {
+      await global.connection.beginTransaction();
+      const result = await global.connection
+        .query(
+          `
+    UPDATE "SRMUSERS" SET "NAME" = '${payload.NAME}', "EMAIL" = '${payload.EMAIL}', "MOBILE" = '${payload.MOBILE}', "PASSWORD" = '${payload.PASSWORD}' 
+    WHERE "ID" = '${payload.ID}';
+    `,
+        )
+        .then(async (res) => {
+          await global.connection.commit();
+          return res;
+        })
+        .catch(async (e) => {
+          await global.connection.rollback();
+          throw e;
+        });
+      if (result.count !== 0) return { message: 'User updated successfully' };
+      else throw new HttpException('No users found', 404);
+    } catch (e: Error | HttpException | any) {
+      throw new HttpException(e.message || 'Error Updating User', 400);
+    }
   }
 }
