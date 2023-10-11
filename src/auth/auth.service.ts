@@ -16,25 +16,7 @@ export class AuthService {
     const doesEmailContainSQL = validateSQL(EMAIL);
     const doesPasswordContainSQL = validateSQL(PASSWORD);
     if (!doesEmailContainSQL && !doesPasswordContainSQL) {
-      // const result: Result<
-      //   UserDashboard & {
-      //     PASSWORD: string;
-      //     ISACTIVE: '0' | '1';
-      //     ISVERIFIED: '0' | '1';
-      //     ID: string;
-      //   }
-      // > = await global.connection.query(`
-      //       Select * FROM "SRMUSERS" WHERE "EMAIL" = '${body.EMAIL}';
-      //   `);
-      let existingUserCommand = await global.connection.createStatement();
-      await existingUserCommand.prepare(
-        'SELECT * FROM "SRMUSERS" WHERE "EMAIL" = ?',
-      );
-      await existingUserCommand.bind([body.EMAIL], (err) => {
-        if (err) {
-          throw new HttpException(err.message, 400);
-        }
-      });
+      // @ts-ignore
       const result: Result<
         UserDashboard & {
           PASSWORD: string;
@@ -42,9 +24,30 @@ export class AuthService {
           ISVERIFIED: '0' | '1';
           ID: string;
         }
-      > = await existingUserCommand.execute();
-      await existingUserCommand.close();
-      existingUserCommand = null;
+      > = await global.connection
+        .query(`Select * FROM "SRMUSERS" WHERE "EMAIL" = '${body.EMAIL}';`)
+        .catch((e) => {
+          throw new HttpException(e.message, 400);
+        });
+      // let existingUserCommand = await global.connection.createStatement();
+      // await existingUserCommand.prepare(
+      //   'SELECT * FROM "SRMUSERS" WHERE "EMAIL" = ?',
+      // );
+      // await existingUserCommand.bind([body.EMAIL], (err) => {
+      //   if (err) {
+      //     throw new HttpException(err.message, 400);
+      //   }
+      // });
+      // const result: Result<
+      //   UserDashboard & {
+      //     PASSWORD: string;
+      //     ISACTIVE: '0' | '1';
+      //     ISVERIFIED: '0' | '1';
+      //     ID: string;
+      //   }
+      // > = await existingUserCommand.execute();
+      // await existingUserCommand.close();
+      // existingUserCommand = null;
       if (result.count !== 0) {
         if (result[0].PASSWORD === body.PASSWORD) {
           if (result[0].ISACTIVE === '0')
@@ -81,38 +84,49 @@ export class AuthService {
   async generateOTP(email: string) {
     console.log(email);
     //  check if user exists against en email;
-    // const isUser: Result<User> = await global.connection.query(`
-    //   SELECT * FROM SRMUSERS WHERE EMAIL = '${email}';
-    // `);
-    const isUser: Result<User> = await createStatementAndExecute(
-      'SELECT * FROM SRMUSERS WHERE EMAIL = ?',
-      [email],
-    );
+    const isUser: Result<User> = await global.connection
+      .query(
+        `
+      SELECT * FROM SRMUSERS WHERE EMAIL = '${email}';
+    `,
+      )
+      .catch((e) => {
+        throw new HttpException(e.message, 400);
+      });
+    // const isUser: Result<User> = await createStatementAndExecute(
+    //   'SELECT * FROM SRMUSERS WHERE "EMAIL" = ?',
+    //   [email],
+    // );
+
     if (isUser.count === 0) throw new HttpException('User Not Found', 404);
     else {
       const code = Math.floor(100000 + Math.random() * 900000);
       const expiryTime = moment().add(10, 'minutes').format('X');
       console.log(expiryTime, 'expiryTime');
       console.log('code', code);
+      // await global.connection.beginTransaction();
+      // const result = await createStatementAndExecute(
+      //   'INSERT INTO SRM_OTP (CODE,EMAIL,EXPIRY,USERID) VALUES (?,?,?,?)',
+      //   [code, email, expiryTime, isUser[0].ID],
+      // )
+      // .catch((e) => {
+      //   throw new HttpException(e.message || 'Error Generating OTP', 400);
+      // })
+      // .then(async (res: Result<any>) => {
+      //   await global.connection.commit();
+      //   return res;
+      // });
       await global.connection.beginTransaction();
-      const result = await createStatementAndExecute(
-        'INSERT INTO SRM_OTP (CODE,EMAIL,EXPIRY,USERID) VALUES (?,?,?,?)',
-        [code, email, expiryTime, isUser[0].ID],
-      )
-        .catch((e) => {
-          console.log(e);
+      const result: Result<any> = await global.connection
+        .query(
+          `
+        INSERT INTO SRM_OTP (CODE,EMAIL,EXPIRY,USERID) VALUES ('${code}','${email}','${expiryTime}','${isUser[0].ID}');
+      `,
+        )
+        .catch(async (e) => {
+          await global.connection.rollback();
           throw new HttpException(e.message || 'Error Generating OTP', 400);
-        })
-        .then(async (res: Result<any>) => {
-          await global.connection.commit();
-          return res;
         });
-      //   const result: Result<any> = await global.connection
-      //     .query(
-      //       `
-      //   INSERT INTO SRM_OTP (CODE,EMAIL,EXPIRY,USERID) VALUES ('${code}','${email}','${expiryTime}','${isUser[0].ID}');
-      // `,
-      //     )
 
       if (result.count !== 0) {
         //   send email
@@ -127,29 +141,41 @@ export class AuthService {
     otp: string;
     email: string;
   }) {
-    // const checkEmailExist = await global.connection.query(`
-    //   SELECT * FROM SRMUSERS WHERE EMAIL = '${body.email}';
-    // `);
-    const checkEmailExist = await createStatementAndExecute(
-      'SELECT * FROM SRMUSERS WHERE EMAIL = ?',
-      [body.email],
-    );
+    const checkEmailExist = await global.connection
+      .query(
+        `
+      SELECT * FROM SRMUSERS WHERE EMAIL = '${body.email}';
+    `,
+      )
+      .catch((e) => {
+        throw new HttpException(e.message, 400);
+      });
+    // const checkEmailExist = await createStatementAndExecute(
+    //   'SELECT * FROM SRMUSERS WHERE "EMAIL" = ?',
+    //   [body.email],
+    // );
     if (checkEmailExist.count === 0)
       throw new HttpException('User Not Found', 404);
     else {
       // check OTP VALID FROM SRM_OTP
-      // const checkOTP: Result<{
-      //   EXPIRY: string;
-      //   EMAIL: string;
-      //   ID: string;
-      //   ISVERIFIED: '0' | '1';
-      // }> = await global.connection.query(`
-      //   SELECT * FROM SRM_OTP WHERE EMAIL = '${body.email}' AND "CODE" = '${body.otp}';
-      // `);
-      const checkOTP = await createStatementAndExecute(
-        'SELECT * FROM SRM_OTP WHERE EMAIL = ? AND "CODE" = ?',
-        [body.email, body.otp],
-      );
+      const checkOTP: Result<{
+        EXPIRY: string;
+        EMAIL: string;
+        ID: string;
+        ISVERIFIED: '0' | '1';
+      }> = await global.connection
+        .query(
+          `
+        SELECT * FROM SRM_OTP WHERE EMAIL = '${body.email}' AND "CODE" = '${body.otp}';
+      `,
+        )
+        .catch((e) => {
+          throw new HttpException(e.message, 400);
+        });
+      // const checkOTP = await createStatementAndExecute(
+      //   'SELECT * FROM SRM_OTP WHERE "EMAIL" = ? AND "CODE" = ?',
+      //   [body.email, body.otp],
+      // );
       if (checkOTP.count !== 0) {
         const isverified = checkOTP[0].ISVERIFIED;
         if (isverified === '1') {
@@ -161,22 +187,36 @@ export class AuthService {
           if (isAfter) {
             throw new HttpException('OTP Expired', 400);
           } else {
-            // const updatePassword = await global.connection.query(`
-            // UPDATE SRMUSERS SET PASSWORD = '${body.password}' WHERE EMAIL = '${body.email}';
-            // `);
             await global.connection.beginTransaction();
-            const updatePassword = await createStatementAndExecute(
-              'UPDATE SRMUSERS SET PASSWORD = ? WHERE EMAIL = ?',
-              [body.password, body.email],
-            );
+            const updatePassword = await global.connection
+              .query(
+                `
+            UPDATE SRMUSERS SET PASSWORD = '${body.password}' WHERE EMAIL = '${body.email}';
+            `,
+              )
+              .catch(async (e) => {
+                await global.connection.rollback();
+                throw new HttpException(e.message, 400);
+              });
+            // const updatePassword = await createStatementAndExecute(
+            //   'UPDATE SRMUSERS SET "PASSWORD" = ? WHERE "EMAIL" = ?',
+            //   [body.password, body.email],
+            // );
             if (updatePassword.count !== 0) {
-              // const updateOTP = await global.connection.query(`
-              //   UPDATE SRM_OTP SET ISVERIFIED = true WHERE EMAIL = '${body.email}' AND "CODE" = '${body.otp}';
-              // `);
-              const updateOTP = await createStatementAndExecute(
-                'UPDATE SRM_OTP SET ISVERIFIED = true WHERE EMAIL = ? AND "CODE" = ?',
-                [body.email, body.otp],
-              );
+              const updateOTP = await global.connection
+                .query(
+                  `
+                UPDATE SRM_OTP SET ISVERIFIED = true WHERE EMAIL = '${body.email}' AND "CODE" = '${body.otp}';
+              `,
+                )
+                .catch(async (e) => {
+                  await global.connection.rollback();
+                  throw new HttpException(e.message, 400);
+                });
+              // const updateOTP = await createStatementAndExecute(
+              //   'UPDATE SRM_OTP SET "ISVERIFIED" = true WHERE "EMAIL" = ? AND "CODE" = ?',
+              //   [body.email, body.otp],
+              // );
               if (updateOTP.count !== 0) {
                 await global.connection.commit();
                 return { message: 'Password Updated Successfully', data: true };

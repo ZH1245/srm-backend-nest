@@ -1,15 +1,7 @@
-import {
-  Controller,
-  Get,
-  Head,
-  Header,
-  Headers,
-  Req,
-  Res,
-} from '@nestjs/common';
+import { Controller, Get, Req, Res } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { Response } from 'express';
-import { JwtPayload } from 'jsonwebtoken';
+
 export type UserDashboard = {
   EMAIL: string;
   CODE: string;

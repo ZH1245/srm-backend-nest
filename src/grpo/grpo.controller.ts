@@ -2,8 +2,6 @@ import {
   Body,
   Controller,
   Get,
-  Head,
-  Headers,
   HttpException,
   Param,
   Patch,
@@ -12,17 +10,20 @@ import {
   Res,
   UploadedFiles,
   UseInterceptors,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { GrpoService } from './grpo.service';
 import { UserDashboard } from 'src/dashboard/dashboard.controller';
 import { Request, Response } from 'express';
-import { writeFile } from 'fs/promises';
 import { JwtPayload } from 'jsonwebtoken';
-import {
-  AnyFilesInterceptor,
-  FilesInterceptor,
-} from '@nestjs/platform-express';
+import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { CreateGrpoPayload } from './types';
+import {
+  CreateMyGRPOValidatorDTO,
+  MyCompletedGRPOSByID,
+  MyReadyGRPOSByID,
+} from './validators';
 
 @Controller('grpo')
 export class GrpoController {
@@ -52,26 +53,27 @@ export class GrpoController {
     return this.grpoService.getMyReadyGrpos(user);
   }
   @Get('my-ready-grpos/:id')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
   async getMyReadyGrposByDocEntry(
     @Req() req: { user?: UserDashboard },
-    @Param('id') id: string,
+    @Param('id') id: MyReadyGRPOSByID['id'],
   ) {
     const user = req.user;
-
-    if (id && id !== 'undefined' && id !== 'null') {
+    if (id) {
       return this.grpoService.getMyReadyGrposByDocEntry(user, id);
     } else {
       throw new HttpException('Invalid DocEntry', 400);
     }
   }
   @Get('my-completed-grpos/:id')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
   async getMyCompletedGrposByDocEntry(
     @Req() req: { user?: UserDashboard },
-    @Param('id') id: string,
+    @Param('id') id: MyCompletedGRPOSByID['id'],
   ) {
     const user = req.user;
 
-    if (id && id !== 'undefined' && id !== 'null') {
+    if (id) {
       return this.grpoService.getMyCompletedGrposByDocEntry(user, id);
     } else {
       throw new HttpException('Invalid DocEntry', 400);
@@ -83,7 +85,7 @@ export class GrpoController {
   @UseInterceptors(AnyFilesInterceptor())
   async createMyGrpo(
     @UploadedFiles() files: Express.Multer.File[],
-    @Body() body: CreateGrpoPayload,
+    @Body() body: CreateMyGRPOValidatorDTO,
     @Req() req: Request & { user?: UserDashboard },
   ) {
     const user = req.user;
@@ -100,7 +102,11 @@ export class GrpoController {
     return this.grpoService.markGrpoAsCompleted();
   }
   @Get('download-attachment/:id')
-  async downloadAttachment(@Param('id') id: string, @Res() res: Response) {
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async downloadAttachment(
+    @Param('id') id: MyCompletedGRPOSByID['id'],
+    @Res() res: Response,
+  ) {
     const result: { data: any; ATTACHMENTNAME: string } =
       await this.grpoService.downloadAttachment(id);
     if (result) {
@@ -125,10 +131,11 @@ export class GrpoController {
     return res.json({ data: result.data, message: result.message });
   }
   @Get('all-invoices-grpos/:id')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
   async getInvoiceDetails(
     @Req() req: { user?: UserDashboard },
     @Res() res: Response,
-    @Param('id') id: string,
+    @Param('id') id: MyCompletedGRPOSByID['id'],
   ) {
     const user = req.user;
     const result = await this.grpoService.getInvoiceDetails(user, id);

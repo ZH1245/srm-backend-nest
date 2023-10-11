@@ -9,7 +9,7 @@ import SQLRegex from 'src/utils/SQLRegex';
 import { validateSQL } from 'src/utils/checkSQL';
 export class LoginValidatorDTO {
   @IsString({ message: 'Email must be a string' })
-  @IsEmail()
+  @IsEmail({}, { message: 'Email must be a valid email address' })
   @IsNotEmpty({ message: 'Email is required' })
   EMAIL: string;
 

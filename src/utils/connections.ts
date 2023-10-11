@@ -1,6 +1,6 @@
 // ----------------------------------------------------------------------------
 import * as moment from 'moment';
-import { connect } from 'odbc';
+import { Connection, connect } from 'odbc';
 // -----------------------------------------------------------------------
 
 /**
@@ -41,7 +41,7 @@ export async function createConnection() {
   /**
    * The database connection object.
    */
-  const connection = await connect(connectionString)
+  const connection: Connection = await connect(connectionString)
     .then((value) => {
       /**
        * The success message.

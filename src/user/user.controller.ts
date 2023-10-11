@@ -12,6 +12,8 @@ import {
   Query,
   Res,
   UseFilters,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import {
@@ -26,6 +28,12 @@ import {
 import { Response } from 'express';
 import { Result } from 'odbc';
 import { HttpExceptionFilter } from 'src/http-exception-filter';
+import {
+  CreateUserValidatorDTO,
+  EditUserValidatorDTO,
+  UpdateUserValidatorDTO,
+} from './validators';
+import { MyCompletedGRPOSByID } from 'src/grpo/validators';
 // -------------------------------------------------------------------------
 /**
  * @class UserController
@@ -106,8 +114,9 @@ export class UserController {
     return response.json(result);
   }
   @Post('new-user')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
   async createNewUser(
-    @Body() body: NewUserDTO,
+    @Body() body: CreateUserValidatorDTO,
     @Res() response: Response,
   ): Promise<Response<{ message: string }>> {
     console.log(body);
@@ -117,15 +126,20 @@ export class UserController {
     return response.json({ message: result.message });
   }
   @Put('edit-user')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
   async EditUser(
-    @Body() body: User & { ROLE: 'user' | 'admin'; CODE: string },
+    @Body() body: EditUserValidatorDTO,
     @Res() response: Response,
   ) {
     const result = await this.userService.EditUser(body);
     return response.json({ message: result.message });
   }
   @Get('me/:id')
-  async getMe(@Param('id') id: any, @Res() response: Response) {
+  @UsePipes(new ValidationPipe({ whitelist: true }))
+  async getMe(
+    @Param('id') id: MyCompletedGRPOSByID['id'],
+    @Res() response: Response,
+  ) {
     const result = await this.userService.getMyDetails(id);
     return response.json({
       data: result,
@@ -133,15 +147,10 @@ export class UserController {
     });
   }
   @Put('update-user')
+  @UsePipes(new ValidationPipe({ whitelist: true }))
   async updateUser(
     @Body()
-    body: {
-      EMAIL: string;
-      NAME: string;
-      PASSWORD: string;
-      MOBILE: string;
-      ID: string;
-    },
+    body: UpdateUserValidatorDTO,
     @Res() response: Response,
   ) {
     const result = await this.userService.updateUser(body);
