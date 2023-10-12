@@ -1,6 +1,8 @@
+// -------------------------------------------------------------------------
 import { Controller, Get, Req, Res } from '@nestjs/common';
 import { DashboardService } from './dashboard.service';
 import { Response } from 'express';
+// -------------------------------------------------------------------------
 
 export type UserDashboard = {
   EMAIL: string;
@@ -8,6 +10,7 @@ export type UserDashboard = {
   NAME: string;
   ROLE: string;
 };
+// -------------------------------------------------------------------------
 @Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}

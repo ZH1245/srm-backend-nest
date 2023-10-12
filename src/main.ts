@@ -11,7 +11,9 @@ async function bootstrap() {
 
   app.use(urlencoded({ extended: true }));
   app.use(json({ limit: '50mb' }));
-  await app.listen(PORT);
+  await app.listen(PORT).then(() => {
+    console.log(`Server is running on port ${PORT}`);
+  });
   await createConnection();
 }
 bootstrap();

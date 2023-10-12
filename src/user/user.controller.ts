@@ -2,9 +2,7 @@
 import {
   Body,
   Controller,
-  ExceptionFilter,
   Get,
-  HttpException,
   Param,
   Patch,
   Post,
@@ -20,13 +18,9 @@ import {
   DeleteUserDTO,
   DisableUserDTO,
   EnableUserDTO,
-  NewUserDTO,
-  User,
   VerfityEmailDTO,
-  getNotCreatedUsersResult,
 } from './type';
 import { Response } from 'express';
-import { Result } from 'odbc';
 import { HttpExceptionFilter } from 'src/http-exception-filter';
 import {
   CreateUserValidatorDTO,

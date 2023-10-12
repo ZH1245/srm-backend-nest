@@ -1,7 +1,6 @@
+// -------------------------------------------------------------------------
 import { HttpException, Injectable } from '@nestjs/common';
 import { Result } from 'odbc';
-import { sign } from 'jsonwebtoken';
-import { genSalt, hash } from 'bcryptjs';
 import {
   DeleteUserDTO,
   DisableUserDTO,
@@ -9,7 +8,7 @@ import {
   NewUserDTO,
 } from './type';
 import { EditUserValidatorDTO } from './validators';
-import { createStatementAndExecute } from 'src/utils/createStatementAndExecute';
+// -------------------------------------------------------------------------
 
 @Injectable()
 /**
@@ -70,16 +69,15 @@ export class UserService {
    * @returns A string indicating the operation performed.
    */
   async verifyEmail(body: { email: string; id: string; OTPCODE: string }) {
-    const result: Result<{ EXPIRYTIME: Date; OTPCODE: string; ID: string }> =
-      await global.connection
-        .query(
-          `
+    const result = (await global.connection
+      .query(
+        `
         SELECT "ID","OTPCODE", "EXPIRYTIME" FROM "SRMOTPCODES" WHERE "EMAIL" = ${body.email};
       `,
-        )
-        .catch((e) => {
-          throw new HttpException(e.message, 400);
-        });
+      )
+      .catch((e) => {
+        throw new HttpException(e.message, 400);
+      })) as Result<{ EXPIRYTIME: Date; OTPCODE: string; ID: string }>;
     // const result: Result<{ EXPIRYTIME: Date; OTPCODE: string; ID: string }> =
     //   await createStatementAndExecute(
     //     `SELECT "ID","OTPCODE", "EXPIRYTIME" FROM "SRMOTPCODES" WHERE "EMAIL" = ?;`,

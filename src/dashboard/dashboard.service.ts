@@ -1,106 +1,115 @@
+// -------------------------------------------------------------------------
 import { HttpException, Injectable } from '@nestjs/common';
 import { UserDashboard } from './dashboard.controller';
-import { GrpoService } from 'src/grpo/grpo.service';
-import { Result } from 'odbc';
-import { createStatementAndExecute } from 'src/utils/createStatementAndExecute';
+import type { Result } from 'odbc';
+import { executeAndReturnResult } from 'src/utils/executeAndReturnResult';
+// -------------------------------------------------------------------------
 
 @Injectable()
 export class DashboardService {
+  /**
+   * Retrieves the dashboard data for a vendor user.
+   * @param authUser The authenticated user.
+   * @returns An object containing the counts of pending, completed, and ready purchase orders.
+   * @throws HttpException if there is an error executing the SQL query.
+   */
   async getVendorDashboard(authUser: UserDashboard) {
     const counts = { pending: 0, completed: 0, ready: 0 };
-    const result: Result<{ COUNT: string }> = await global.connection
-      .query(
-        `
-      SELECT COUNT(P."DocNum") AS "COUNT"  FROM "PDN1" P1
+    try {
+      const result: Result<{ COUNT: string }> = await executeAndReturnResult(
+        `SELECT COUNT("GRPO#") AS "COUNT"
+        FROM
+        (
+          SELECT
+        DISTINCT P."DocNum" AS "GRPO#"
+      FROM "PDN1" P1
       INNER JOIN "OPDN" P on P1."DocEntry" = P."DocEntry" AND P."CardCode" = '${authUser.CODE}'
-`,
-      )
-      .catch((e) => {
-        throw new HttpException(e.message, 400);
-      });
-    if (result.count !== 0) {
-      counts.pending = JSON.parse(result[0].COUNT);
-    } else {
-      counts.pending = 0;
+      INNER JOIN "OPOR" PR ON TO_VARCHAR(PR."DocNum") = TO_VARCHAR(P1."BaseRef")
+      LEFT JOIN "@OIGP" GP ON TO_VARCHAR(P."U_GPN") = TO_VARCHAR(GP."DocNum")
+      WHERE P."DocDate" >= '2023-01-01' AND P."U_GPN" IS NOT NULL
+      AND P1."ItemCode" NOT IN 
+        (
+          SELECT "ItemCode"  FROM "PCH1" AP1
+          INNER JOIN "OPCH" AP ON AP."DocEntry" = AP1."DocEntry"
+          WHERE TO_VARCHAR(AP1."BaseRef") = TO_VARCHAR(P."DocNum") AND AP."DocStatus" <> 'C'
+        )
+        );`,
+      );
+
+      if (result.count !== 0) {
+        counts.pending = JSON.parse(result[0].COUNT);
+      } else {
+        counts.pending = 0;
+      }
+      const readyPO: Result<{ COUNT: string }> = await executeAndReturnResult(
+        `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" ='${authUser.CODE}' AND "STATUS" = 'ready';`,
+      );
+
+      // const readyPO: Result<{ COUNT: string }> = await createStatementAndExecute(
+      //   'SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" = ? AND "STATUS" = ?;',
+      //   [authUser.CODE, 'ready'],
+      // );
+      if (readyPO.count !== 0) {
+        counts.ready = JSON.parse(readyPO[0].COUNT);
+      } else {
+        counts.ready = 0;
+      }
+      const completed: Result<{ COUNT: string }> = await executeAndReturnResult(
+        `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" ='${authUser.CODE}' AND "STATUS" = 'completed';`,
+      );
+
+      // const completed: Result<{ COUNT: string }> =
+      //   await createStatementAndExecute(
+      //     'SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" = ? AND "STATUS" = ?;',
+      //     [authUser.CODE, 'completed'],
+      //   );
+      if (completed.count !== 0) {
+        counts.completed = JSON.parse(completed[0].COUNT);
+      } else {
+        counts.completed = 0;
+      }
+      return counts;
+    } catch (e) {
+      throw new HttpException(e.message, 400);
     }
-    const readyPO: Result<{ COUNT: string }> = await global.connection
-      .query(
-        `
-    SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" ='${authUser.CODE}' AND "STATUS" = 'ready';
-    `,
-      )
-      .catch((e) => {
-        throw new HttpException(e.message, 400);
-      });
-    // const readyPO: Result<{ COUNT: string }> = await createStatementAndExecute(
-    //   'SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" = ? AND "STATUS" = ?;',
-    //   [authUser.CODE, 'ready'],
-    // );
-    if (readyPO.count !== 0) {
-      counts.ready = JSON.parse(readyPO[0].COUNT);
-    } else {
-      counts.ready = 0;
-    }
-    const completed: Result<{ COUNT: string }> = await global.connection
-      .query(
-        `
-    SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" ='${authUser.CODE}' AND "STATUS" = 'completed';
-    `,
-      )
-      .catch((e) => {
-        throw new HttpException(e.message, 400);
-      });
-    // const completed: Result<{ COUNT: string }> =
-    //   await createStatementAndExecute(
-    //     'SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" = ? AND "STATUS" = ?;',
-    //     [authUser.CODE, 'completed'],
-    //   );
-    if (completed.count !== 0) {
-      counts.completed = JSON.parse(completed[0].COUNT);
-    } else {
-      counts.completed = 0;
-    }
-    return counts;
   }
+  /**
+   * Retrieves the counts of users, defected receipts, and completed GRPOs for the admin dashboard.
+   * @returns An object containing the counts of users, defected receipts, and completed GRPOs.
+   * @throws HttpException if there is an error while retrieving the counts.
+   */
   async getAdminDashboard() {
     const counts = { users: 0, defectedReceipts: 0, completedGrpos: 0 };
-    const result: Result<{ COUNT: string }> = await global.connection
-      .query(
-        `
-      SELECT COUNT("ID") AS "COUNT" FROM "SRMUSERS"`,
-      )
-      .catch((e) => {
-        throw new HttpException(e.message, 400);
-      });
-    // const result: Result<{ COUNT: string }> = await createStatementAndExecute(
-    //   'SELECT COUNT("ID") AS "COUNT" FROM "SRMUSERS";',
-    //   [],
-    // );
-    if (result.count !== 0) {
-      counts.users = JSON.parse(result[0].COUNT);
-    } else {
-      counts.users = 0;
-    }
+    try {
+      const result: Result<{ COUNT: string }> = await executeAndReturnResult(
+        `SELECT COUNT("ID") AS "COUNT" FROM "SRMUSERS"`,
+      );
+      // const result: Result<{ COUNT: string }> = await createStatementAndExecute(
+      //   'SELECT COUNT("ID") AS "COUNT" FROM "SRMUSERS";',
+      //   [],
+      // );
+      if (result.count !== 0) {
+        counts.users = JSON.parse(result[0].COUNT);
+      } else {
+        counts.users = 0;
+      }
 
-    const completed: Result<{ COUNT: string }> = await global.connection
-      .query(
-        `
-        SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = 'completed';
-    `,
-      )
-      .catch((e) => {
-        throw new HttpException(e.message, 400);
-      });
-    // const completed: Result<{ COUNT: string }> =
-    //   await createStatementAndExecute(
-    //     'SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = ?;',
-    //     ['completed'],
-    //   );
-    if (completed.count !== 0) {
-      counts.completedGrpos = JSON.parse(completed[0].COUNT);
-    } else {
-      counts.completedGrpos = 0;
+      const completed: Result<{ COUNT: string }> = await executeAndReturnResult(
+        `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = 'completed';`,
+      );
+      // const completed: Result<{ COUNT: string }> =
+      //   await createStatementAndExecute(
+      //     'SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = ?;',
+      //     ['completed'],
+      //   );
+      if (completed.count !== 0) {
+        counts.completedGrpos = JSON.parse(completed[0].COUNT);
+      } else {
+        counts.completedGrpos = 0;
+      }
+      return counts;
+    } catch (e) {
+      throw new HttpException(e.message, 400);
     }
-    return counts;
   }
 }
