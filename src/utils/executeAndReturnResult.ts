@@ -6,6 +6,7 @@ export async function executeAndReturnResult(
   isTransaction = false,
 ) {
   try {
+    // console.log(params);
     const result: Result<any> = await global.connection
       .query(params)
       .catch((e) => {

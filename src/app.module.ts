@@ -17,6 +17,8 @@ import { GrpoController } from './grpo/grpo.controller';
 import { GrpoModule } from './grpo/grpo.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { AdminMiddleware } from './middlewares/AdminMiddleware';
+import { SapService } from './sap/sap.service';
+import { SapModule } from './sap/sap.module';
 @Module({
   imports: [
     UserModule,
@@ -24,6 +26,7 @@ import { AdminMiddleware } from './middlewares/AdminMiddleware';
     ConfigModule.forRoot({}),
     DashboardModule,
     GrpoModule,
+    SapModule,
   ],
   controllers: [
     AppController,
@@ -38,6 +41,7 @@ import { AdminMiddleware } from './middlewares/AdminMiddleware';
     AuthService,
     DashboardService,
     GrpoService,
+    SapService,
   ],
 })
 export class AppModule {
