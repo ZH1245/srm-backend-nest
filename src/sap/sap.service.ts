@@ -14,7 +14,8 @@ export class SapService {
           // UserName: "erp05",
           Password: user.password,
           UserName: user.code,
-          CompanyDB: process.env.database,
+          // CompanyDB: process.env.database,
+          CompanyDB: 'TESTDFL16102023',
           // CompanyDB: process.env.hana_schema,
           // CompanyDB: "APPHIERARCHY19122022",
           // Password: "1234",
@@ -44,6 +45,7 @@ export class SapService {
           ROUTEID: String(res.headers['set-cookie'][1])
             .split('=')[1]
             .split(';')[0],
+          setCookies: res.headers['set-cookie'].join(';'),
         };
         return cookies;
         // request.session.user.sap =;
@@ -80,5 +82,47 @@ export class SapService {
 
         // throw Error(e?.response?.data.message || e?.message);
       });
+  }
+  async addAttachments(files: Express.Multer.File[]) {
+    console.log(files, 'Files');
+    const sapFileNames = files.map((file) => {
+      return {
+        FileExtension: file.originalname.split('.')[1],
+        FileName: file.originalname,
+        SourcePath:
+          '\\\\192.168.5.191\\Backup\\ZAINWEBSITETESTING\\SRM\\attachments',
+        // UserID: '1',
+      };
+    });
+    const SAPPayload = {
+      Attachments2_Lines: [...sapFileNames],
+    };
+    console.log('Attachment Payload', SAPPayload);
+    const cookiesFromSAP = await this.loginSAPUser({
+      code: 'admin03',
+      password: 'hamza@815',
+    });
+    return await axios
+      .post('https://sap.dfl.com.pk:50000/b1s/v1/Attachments2', SAPPayload, {
+        withCredentials: true,
+        httpsAgent: new https.Agent({
+          rejectUnauthorized: false,
+        }),
+        headers: {
+          // cookies: `B1SESSION=${cookies['B1SESSION']},ROUTEID=${cookies['ROUTEID']}`,
+          cookies: cookiesFromSAP.fullCookie.join(','),
+          cookie: `${cookiesFromSAP['setCookies']}`,
+        },
+      })
+      .then((res) => {
+        console.log(res.data, ' Attachments');
+        return { data: res.data, AbsoluteEntry: res.data.AbsoluteEntry };
+      })
+      .catch((e) => {
+        // console.log(e.request);
+        console.log(e?.response?.data?.error?.message?.value || e?.message);
+        throw Error(e?.response?.data?.error?.message?.value || e?.message);
+      });
+    // console.log(sapEntry.data, 'Attachments');
   }
 }

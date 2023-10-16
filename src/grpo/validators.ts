@@ -42,4 +42,9 @@ export class CreateMyGRPOValidatorDTO {
   @IsNotEmpty({ message: 'Status is required' })
   @IsNotIn(['undefined', 'null'], { message: 'Status is required' })
   STATUS: 'ready' | 'completed';
+
+  @IsString({ message: 'Branch is required' })
+  @IsNotEmpty({ message: 'Branch is required' })
+  @IsNotIn(['undefined', 'null'], { message: 'Branch is required' })
+  BPLId: string;
 }

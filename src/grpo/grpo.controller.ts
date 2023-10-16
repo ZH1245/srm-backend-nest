@@ -126,15 +126,30 @@ export class GrpoController {
    * @param req - Express Request object with user information.
    * @returns Promise with created GRPO data.
    */
-  @Post('create-my-grpo')
+  @Post('create-my-grpo-as-draft')
   @UseInterceptors(AnyFilesInterceptor())
-  async createMyGrpo(
+  async createMyGrpoAsDraft(
     @UploadedFiles() files: Express.Multer.File[],
     @Body() body: CreateMyGRPOValidatorDTO,
     @Req() req: Request & { user?: UserDashboard },
   ) {
     const user = req.user;
-    const result = await this.grpoService.createMyGrpo(user, files, body);
+    const result = await this.grpoService.createMyDraftPO(user, files, body);
+    return result;
+  }
+  @Post('create-my-grpo-and-invoice')
+  @UseInterceptors(AnyFilesInterceptor())
+  async createMyGrpoAndInvoice(
+    @UploadedFiles() files: Express.Multer.File[],
+    @Body() body: CreateMyGRPOValidatorDTO,
+    @Req() req: Request & { user?: UserDashboard },
+  ) {
+    const user = req.user;
+    const result = await this.grpoService.createAndGenerateInvoice(
+      user,
+      files,
+      body,
+    );
     return result;
   }
 

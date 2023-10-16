@@ -13,12 +13,13 @@ import { DashboardController } from './dashboard/dashboard.controller';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { GrpoService } from './grpo/grpo.service';
 import { GrpoController } from './grpo/grpo.controller';
-
 import { GrpoModule } from './grpo/grpo.module';
 import { AuthMiddleware } from './auth/auth.middleware';
 import { AdminMiddleware } from './middlewares/AdminMiddleware';
 import { SapService } from './sap/sap.service';
 import { SapModule } from './sap/sap.module';
+import { EmailService } from './email/email.service';
+import { EmailModule } from './email/email.module';
 @Module({
   imports: [
     UserModule,
@@ -27,6 +28,7 @@ import { SapModule } from './sap/sap.module';
     DashboardModule,
     GrpoModule,
     SapModule,
+    EmailModule,
   ],
   controllers: [
     AppController,
@@ -42,6 +44,7 @@ import { SapModule } from './sap/sap.module';
     DashboardService,
     GrpoService,
     SapService,
+    EmailService,
   ],
 })
 export class AppModule {

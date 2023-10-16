@@ -4,8 +4,12 @@ import { writeFile, readFile } from 'fs/promises';
 import { Result } from 'odbc';
 import { UserDashboard } from 'src/dashboard/dashboard.controller';
 import { validateSQL } from 'src/utils/checkSQL';
-import { MyReadyGRPOSByID } from './validators';
+import { CreateMyGRPOValidatorDTO, MyReadyGRPOSByID } from './validators';
+import { Agent } from 'https';
 import { executeAndReturnResult } from 'src/utils/executeAndReturnResult';
+import { SapService } from 'src/sap/sap.service';
+import axios from 'axios';
+import { SAPDRAFTSUCCESS } from './types';
 // -------------------------------------------------------------------------
 export type DataProps = {
   'PO#': number;
@@ -24,7 +28,8 @@ export type DataProps = {
   LineBASELINE: string;
   LineBASEREF: string;
   LineBASETYPE: string;
-  LineDOCENTRY: string;
+  BASETYPE: string;
+  LINEDOCENTRY: string;
   OPENQTY: number;
   PONO: string;
   SHIPDATE: string;
@@ -35,6 +40,7 @@ export type DataProps = {
 // -------------------------------------------------------------------------
 @Injectable()
 export class GrpoService {
+  constructor(private readonly sapSercice: SapService) {}
   /**
    * Retrieves pending GRPOs for a given user.
    * @param me - The user object.
@@ -73,27 +79,34 @@ export class GrpoService {
         const result = await executeAndReturnResult(
           `SELECT
           P."DocNum" AS "GRPO#",
+          P."BPLId" AS "BranchID",
+          BR."BPLName" AS "BranchName",
           TO_VARCHAR(TO_DATE(PR."DocDate"),'DD-MM-YYYY') AS "DocDate",
-          "Quantity" AS "ReceivedQty",
-          "Quantity" AS "BillQty",
+          "Quantity" AS "TotalQty",
+          CASE WHEN P1."OpenQty" = 0 OR P1."OpenQty" IS NULL THEN P1."Quantity" ELSE P1."OpenQty" END AS "OpenQty",
+          --IFNULL(P1."OpenQty",P1."Quantity") AS "OpenQty",
+          CASE WHEN P1."OpenQty" = 0 OR P1."OpenQty" IS NULL THEN P1."Quantity" ELSE P1."OpenQty" END AS "BillQty",
+          --IFNULL(P1."OpenQty",P1."Quantity") AS "BillQty",
           GP."U_DANo" AS "Bill#",
           TO_VARCHAR(TO_DATE(P."DocDate"),'DD-MM-YYYY') AS "BillDate",
           P1."BaseRef" AS "PO#",
-          P1."U_QtyFail" AS "RejectedQty",
+          IFNULL(P1."U_QtyFail",0) AS "RejectedQty",
+          IFNULL(P1."U_QtyPass",P1."Quantity") AS "PassedQty",
           TO_VARCHAR(TO_DATE(P1."ShipDate"),'DD-MM-YYYY') AS "ShipDate",
           P1."ItemCode",P1."Dscription" AS "Item Dsc",
           P1."LineNum" AS "LineNum",
-          P1."DocEntry" AS "LineDOCENTRY",
-          P1."BaseRef" AS "LineBASEREF",
-          P1."BaseType" AS "LineBASETYPE",
-          P1."BaseEntry" AS "LineBASEENTRY",
-          P1."BaseLine" AS "LineBASELINE",
+          P."DocEntry" AS "LineDOCENTRY",
+          --P1."BaseRef" AS "LineBASEREF",
+          --P1."BaseType" AS "LineBASETYPE",
+          --P1."BaseEntry" AS "LineBASEENTRY",
+          --P1."BaseLine" AS "LineBASELINE",
           P1."LineTotal" AS "LINETOTAL",
           P1."OpenQty" AS "LINEOPENQTY"
         FROM "PDN1" P1
         INNER JOIN "OPDN" P on P1."DocEntry" = P."DocEntry" AND P."CardCode" = '${me.CODE}'
         INNER JOIN "OPOR" PR ON TO_VARCHAR(PR."DocNum") = TO_VARCHAR(P1."BaseRef")
         LEFT JOIN "@OIGP" GP ON TO_VARCHAR(P."U_GPN") = TO_VARCHAR(GP."DocNum")
+        LEFT JOIN "OBPL" BR ON P."BPLId" = BR."BPLId"
         WHERE P."DocDate" >= '2023-01-01' AND P."U_GPN" IS NOT NULL
         AND P1."ItemCode" NOT IN 
           (
@@ -196,7 +209,7 @@ export class GrpoService {
     const result = { header: null, items: null, attachments: null };
     try {
       const header = await executeAndReturnResult(
-        `SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 WHERE T0."VENDORCODE" ='${user.CODE}' AND "STATUS" = 'ready' AND T0."DOCENTRY" = '${id}';`,
+        `SELECT "DOCENTRY" AS "Doc#", BP."BPLName" AS "Branch","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 LEFT JOIN OBPL BP ON BP."BPLId" = T0."BPLID" WHERE T0."VENDORCODE" ='${user.CODE}' AND "STATUS" = 'ready' AND T0."DOCENTRY" = '${id}';`,
       );
       // const header = await createStatementAndExecute(
       //   ` SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 WHERE T0."VENDORCODE" = ? AND "STATUS" = ? AND T0."DOCENTRY" = ?`,
@@ -205,7 +218,7 @@ export class GrpoService {
       if (header.count !== 0) {
         result.header = header;
         const items = await executeAndReturnResult(
-          `SELECT "DOCENTRY","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","RECEIVEDQTY","BILLQTY" FROM "SRM_GRPO1" T0 WHERE TO_VARCHAR(T0."DOCENTRY") = TO_VARCHAR('${id}');`,
+          `SELECT "PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","BILLQTY" FROM "SRM_GRPO1" T0 WHERE TO_VARCHAR(T0."DOCENTRY") = TO_VARCHAR('${id}');`,
         );
         // const items = await createStatementAndExecute(
         //   `SELECT "DOCENTRY","LINEID","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","RECEIVEDQTY","BILLQTY" FROM "SRM_GRPO1" T0 WHERE T0."DOCENTRY" = ?`,
@@ -242,10 +255,10 @@ export class GrpoService {
    */
   async getMyCompletedGrposByDocEntry(user: UserDashboard, id: string) {
     const result = { header: null, items: null, attachments: null };
-
     try {
       const header = await executeAndReturnResult(
-        `SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 WHERE T0."VENDORCODE" ='${user.CODE}' AND "STATUS" = 'completed' AND T0."DOCENTRY" = '${id}';`,
+        `SELECT "DOCENTRY" AS "Doc#", BP."BPLName" AS "Branch","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT" FROM "SRM_OGRPO" T0 LEFT JOIN "OBPL" BP on TO_VARCHAR(BP."BPLId") = TO_VARCHAR(T0."BPLID")
+        WHERE T0."VENDORCODE" ='${user.CODE}' AND "STATUS" = 'completed' AND T0."DOCENTRY" = '${id}';`,
       );
       // const header = await createStatementAndExecute(
       //   `SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 WHERE T0."VENDORCODE" = ? AND "STATUS" = ? AND T0."DOCENTRY" = ?`,
@@ -254,7 +267,7 @@ export class GrpoService {
       if (header.count !== 0) {
         result.header = header;
         const items = await executeAndReturnResult(
-          `SELECT "DOCENTRY","LINEID","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","RECEIVEDQTY","BILLQTY" FROM "SRM_GRPO1" T0 WHERE T0."DOCENTRY" = '${id}';`,
+          `SELECT "PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","BILLQTY" FROM "SRM_GRPO1" T0 WHERE T0."DOCENTRY" = '${id}';`,
         );
         // const items = await createStatementAndExecute(
         //   `SELECT "DOCENTRY","LINEID","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","RECEIVEDQTY","BILLQTY" FROM "SRM_GRPO1" T0 WHERE T0."DOCENTRY" = ?`,
@@ -293,6 +306,7 @@ export class GrpoService {
     user: UserDashboard,
     files: Express.Multer.File[],
     body: {
+      BPLId: number;
       BILLNO: string;
       BILLDATE: string;
       ITEMS: string;
@@ -300,7 +314,7 @@ export class GrpoService {
     },
   ) {
     try {
-      const { BILLNO, BILLDATE, ITEMS } = body;
+      const { BILLNO, BILLDATE, ITEMS, BPLId } = body;
       const GrpoItems: Array<DataProps> = JSON.parse(ITEMS);
       const areFilesUploaded = await this.uploadFiles(files);
       if (areFilesUploaded) {
@@ -417,19 +431,22 @@ export class GrpoService {
       throw new HttpException(e.message, 500);
     }
   }
-  async createMyGrpo(
+  async createMyGrpoWithInvoiceCopy(
     user: UserDashboard,
     files: Express.Multer.File[],
-    body: {
-      BILLNO: string;
-      BILLDATE: string;
-      ITEMS: string;
-      STATUS: 'ready' | 'completed';
-    },
+    // body: {
+    //   BPLId: number;
+    //   BILLNO: string;
+    //   BILLDATE: string;
+    //   ITEMS: string;
+    //   STATUS: 'ready' | 'completed';
+    // },
+    body: CreateMyGRPOValidatorDTO,
   ) {
     try {
-      const { BILLNO, BILLDATE, ITEMS } = body;
+      const { BILLNO, BILLDATE, ITEMS, BPLId } = body;
       const GrpoItems: Array<DataProps> = await JSON.parse(ITEMS);
+      // console.log(GrpoItems, ' GRPO ITEMS');
       const areFilesUploaded = await this.uploadFiles(files);
       if (areFilesUploaded) {
         const CurrentDocEntry: Result<{ DOCENTRY: string }> =
@@ -444,7 +461,7 @@ export class GrpoService {
           const DocEntry = JSON.parse(CurrentDocEntry[0].DOCENTRY) + 1;
           await global.connection.beginTransaction();
           const result = await executeAndReturnResult(
-            `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS) VALUES ('${DocEntry}', '${BILLNO}', '${BILLDATE}', '${user.CODE}', '${body.STATUS}');`,
+            `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS,BPLID) VALUES ('${DocEntry}', '${BILLNO}', '${BILLDATE}', '${user.CODE}', '${body.STATUS}','${body.BPLId}');`,
             true,
           )
             // const result = await createStatementAndExecute(
@@ -459,8 +476,9 @@ export class GrpoService {
                   //   `INSERT INTO SRM_GRPO1 (DOCENTRY, LINEID, PONO, GRPONO ,PODATE, ITEMCODE, ITEMDSC, SHIPDATE, RECEIVEDQTY, BILLQTY) VALUES ('${DocEntry}', '${item.LineNum}', '${item['PO#']}', '${item['GRPO#']}', '${item.DocDate}', '${item.ItemCode}', '${item['Item Dsc']}', '${item.ShipDate}', '${item.ReceivedQty}', '${item.BillQty}');`,
                   //   true,
                   // )
+                  // console.log(item, ' ITEMS');
                   await executeAndReturnResult(
-                    `INSERT INTO SRM_GRPO1 (DOCENTRY, LINENUM, LINETOTAL, BASEREF, BASETYPE, BASEENTRY, OPENQTY, BASELINE, PONO, GRPONO, PODATE, ITEMCODE, ITEMDSC, SHIPDATE, RECEIVEDQTY, BILLQTY) VALUES ('${DocEntry}', '${item.LineNum}', '${item.LINETOTAL}', '${item.LineBASEREF}', '${item.LineBASETYPE}', '${item.LineBASEENTRY}', '${item.OPENQTY}', '${item.LineBASELINE}', '${item['PONO']}', '${item['GRPONO']}', '${item.PODATE}', '${item.ITEMCODE}', '${item['ITEMDSC']}', '${item.SHIPDATE}', '${item.RECEIVEDQTY}', '${item.BILLQTY}');
+                    `INSERT INTO SRM_GRPO1 (DOCENTRY,LINEDOCENTRY,LINENUM,PONO,GRPONO,PODATE,ITEMCODE,ITEMDSC,SHIPDATE,BILLQTY,LINETOTAL) VALUES ('${DocEntry}', '${item.LINEDOCENTRY}', '${item.LineNum}', '${item['PONO']}', '${item['GRPONO']}', '${item.PODATE}', '${item.ITEMCODE}', '${item['ITEMDSC']}', '${item.SHIPDATE}', '${item.BILLQTY}', '${item.LINETOTAL}');
                   `,
                     true,
                   )
@@ -524,7 +542,63 @@ export class GrpoService {
                     })
                       .then(async () => {
                         await global.connection.commit();
-                        return { message: 'GRPO created successfully' };
+                        const cookies = await this.sapSercice.loginSAPUser({
+                          code: 'admin03',
+                          password: 'hamza@815',
+                        });
+                        console.log(cookies, ' Cookies');
+                        const sapPayload = {
+                          CardCode: user.CODE,
+                          DocObjectCode: 'oPurchaseInvoices',
+                          BPL_IDAssignedToInvoice: BPLId,
+                          DocumentLines: GrpoItems.map((it, index) => {
+                            return {
+                              LineNum: index,
+                              ItemCode: it.ITEMCODE,
+                              Quantity: it.BILLQTY,
+                              BaseType: 20,
+                              BaseLine: it.LineNum,
+                              BaseEntry: it.LINEDOCENTRY,
+                            };
+                          }),
+                        };
+                        console.log(sapPayload, ' SAP Payload');
+                        const attachmentABS =
+                          await this.sapSercice.addAttachments(files);
+                        const { AbsoluteEntry, data } = attachmentABS;
+                        // console.log({
+                        //   ...sapPayload,
+                        //   AttachmentEntry: AbsoluteEntry,
+                        // });
+                        return await axios
+                          .post(
+                            'https://sap.dfl.com.pk:50000/b1s/v1/Drafts',
+                            { ...sapPayload, AttachmentEntry: AbsoluteEntry },
+                            {
+                              withCredentials: true,
+                              httpsAgent: new Agent({
+                                rejectUnauthorized: false,
+                              }),
+                              headers: {
+                                // cookies: `B1SESSION=${cookies['B1SESSION']},ROUTEID=${cookies['ROUTEID']}`,
+                                cookies: cookies.fullCookie.join(','),
+                                cookie: `${cookies['setCookies']}`,
+                              },
+                            },
+                          )
+                          .then((res) => {
+                            // console.log(res.data, ' SAP ENTRY');
+                            return { message: 'GRPO And Invoice Created' };
+                          })
+                          .catch((e) => {
+                            console.log(
+                              e?.response?.data?.error?.message?.value,
+                              ' SAP ERROR',
+                            );
+                            throw new Error(
+                              e?.response?.data?.error?.message?.value,
+                            );
+                          });
                       })
                       .catch(async (e) => {
                         await global.connection.rollback();
@@ -548,6 +622,519 @@ export class GrpoService {
       }
     } catch (e) {
       throw new HttpException(e.message, 500);
+    }
+  }
+  async createAndGenerateInvoiceCopy(
+    user: UserDashboard,
+    files: Express.Multer.File[],
+    // body: {
+    //   BPLId: number;
+    //   BILLNO: string;
+    //   BILLDATE: string;
+    //   ITEMS: string;
+    //   STATUS: 'ready' | 'completed';
+    // },
+    body: CreateMyGRPOValidatorDTO,
+  ) {
+    try {
+      const { BILLNO, BILLDATE, ITEMS, BPLId } = body;
+      const GrpoItems: Array<DataProps> = await JSON.parse(ITEMS);
+      // console.log(GrpoItems, ' GRPO ITEMS');
+      const areFilesUploaded = await this.uploadFiles(files);
+      if (areFilesUploaded) {
+        const CurrentDocEntry: Result<{ DOCENTRY: string }> =
+          await executeAndReturnResult(
+            `SELECT IFNULL(MAX("DOCENTRY"),0) AS "DOCENTRY" FROM "SRM_OGRPO";`,
+          );
+        // const CurrentDocEntry = await createStatementAndExecute(
+        //   ` SELECT IFNULL(MAX("DOCENTRY"),0) AS "DOCENTRY" FROM "SRM_OGRPO"`,
+        //   [],
+        // );
+        if (CurrentDocEntry.count !== 0) {
+          const DocEntry = JSON.parse(CurrentDocEntry[0].DOCENTRY) + 1;
+          await global.connection.beginTransaction();
+          const result = await executeAndReturnResult(
+            `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS,BPLID) VALUES ('${DocEntry}', '${BILLNO}', '${BILLDATE}', '${user.CODE}', '${body.STATUS}','${body.BPLId}');`,
+            true,
+          )
+            // const result = await createStatementAndExecute(
+            //   `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS) VALUES (?,?,?,?,?)`,
+            //   [DocEntry, BILLNO, BILLDATE, user.CODE, body.STATUS],
+            // )
+            .then(async () => {
+              await new Promise(async (res, rej) => {
+                let count = 0;
+                await GrpoItems.forEach(async (item) => {
+                  // await executeAndReturnResult(
+                  //   `INSERT INTO SRM_GRPO1 (DOCENTRY, LINEID, PONO, GRPONO ,PODATE, ITEMCODE, ITEMDSC, SHIPDATE, RECEIVEDQTY, BILLQTY) VALUES ('${DocEntry}', '${item.LineNum}', '${item['PO#']}', '${item['GRPO#']}', '${item.DocDate}', '${item.ItemCode}', '${item['Item Dsc']}', '${item.ShipDate}', '${item.ReceivedQty}', '${item.BillQty}');`,
+                  //   true,
+                  // )
+                  // console.log(item, ' ITEMS');
+                  await executeAndReturnResult(
+                    `INSERT INTO SRM_GRPO1 (DOCENTRY,LINEDOCENTRY,LINENUM,PONO,GRPONO,PODATE,ITEMCODE,ITEMDSC,SHIPDATE,BILLQTY,LINETOTAL) VALUES ('${DocEntry}', '${item.LINEDOCENTRY}', '${item.LineNum}', '${item['PONO']}', '${item['GRPONO']}', '${item.PODATE}', '${item.ITEMCODE}', '${item['ITEMDSC']}', '${item.SHIPDATE}', '${item.BILLQTY}', '${item.LINETOTAL}');
+                  `,
+                    true,
+                  )
+                    // await createStatementAndExecute(
+                    //   `INSERT INTO SRM_GRPO1 (DOCENTRY, LINEID, PONO, GRPONO ,PODATE, ITEMCODE, ITEMDSC, SHIPDATE, RECEIVEDQTY, BILLQTY) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+                    //   [
+                    //     DocEntry,
+                    //     item.LineNum,
+                    //     item['PO#'],
+                    //     item['GRPO#'],
+                    //     item.DocDate,
+                    //     item.ItemCode,
+                    //     item['Item Dsc'],
+                    //     item.ShipDate,
+                    //     item.ReceivedQty,
+                    //     item.BillQty,
+                    //   ],
+                    // )
+                    .then(() => {
+                      count++;
+                      if (count == GrpoItems.length) {
+                        res(true);
+                      }
+                    })
+                    .catch(async (e) => {
+                      rej(e);
+                    });
+                });
+              })
+                .then(async (res: boolean) => {
+                  if (res) {
+                    await new Promise(async (resolve, reject) => {
+                      let count = 0;
+                      await files.forEach(async (file, index) => {
+                        const fileInsert = await executeAndReturnResult(
+                          `INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES ('${DocEntry}', '${
+                            file.originalname
+                          }', '${'\\\\192.168.5.191\\Backup\\ZAINWEBSITETESTING\\SRM\\attachments\\'}');
+                      `,
+                          true,
+                        )
+                          // const fileInsert = await createStatementAndExecute(
+                          //   ` INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES (?,?,?)`,
+                          //   [
+                          //     DocEntry,
+                          //     file.originalname,
+                          //     '\\\\192.168.5.191\\Backup\\ZAINWEBSITETESTING\\SRM\\attachments\\',
+                          //   ],
+                          // )
+                          .then(() => {
+                            count++;
+                            if (count == files.length) {
+                              resolve(true);
+                            }
+                          })
+                          .catch(async (e) => {
+                            await global.connection.rollback();
+                            reject(e);
+                          });
+                      });
+                    })
+                      .then(async () => {
+                        await global.connection.commit();
+                        const cookies = await this.sapSercice.loginSAPUser({
+                          code: 'admin03',
+                          password: 'hamza@815',
+                        });
+                        console.log(cookies, ' Cookies');
+                        const sapPayload = {
+                          CardCode: user.CODE,
+                          DocObjectCode: 'oPurchaseInvoices',
+                          BPL_IDAssignedToInvoice: BPLId,
+                          DocumentLines: GrpoItems.map((it, index) => {
+                            return {
+                              LineNum: index,
+                              ItemCode: it.ITEMCODE,
+                              Quantity: it.BILLQTY,
+                              BaseType: 20,
+                              BaseLine: it.LineNum,
+                              BaseEntry: it.LINEDOCENTRY,
+                            };
+                          }),
+                        };
+                        console.log(sapPayload, ' SAP Payload');
+                        const attachmentABS =
+                          await this.sapSercice.addAttachments(files);
+                        const { AbsoluteEntry, data } = attachmentABS;
+                        // console.log({
+                        //   ...sapPayload,
+                        //   AttachmentEntry: AbsoluteEntry,
+                        // });
+                        return await axios
+                          .post(
+                            'https://sap.dfl.com.pk:50000/b1s/v1/Drafts',
+                            { ...sapPayload, AttachmentEntry: AbsoluteEntry },
+                            {
+                              withCredentials: true,
+                              httpsAgent: new Agent({
+                                rejectUnauthorized: false,
+                              }),
+                              headers: {
+                                // cookies: `B1SESSION=${cookies['B1SESSION']},ROUTEID=${cookies['ROUTEID']}`,
+                                cookies: cookies.fullCookie.join(','),
+                                cookie: `${cookies['setCookies']}`,
+                              },
+                            },
+                          )
+                          .then((res) => {
+                            // console.log(res.data, ' SAP ENTRY');
+                            return { message: 'GRPO And Invoice Created' };
+                          })
+                          .catch((e) => {
+                            console.log(
+                              e?.response?.data?.error?.message?.value,
+                              ' SAP ERROR',
+                            );
+                            throw new Error(
+                              e?.response?.data?.error?.message?.value,
+                            );
+                          });
+                      })
+                      .catch(async (e) => {
+                        await global.connection.rollback();
+                        // return { message: e.message };
+                        throw new Error(e.message);
+                      });
+                  } else {
+                    await global.connection.rollback();
+                    return { message: 'Error inserting items' };
+                  }
+                })
+                .catch(async (e) => {
+                  await global.connection.rollback();
+                  throw new Error(e.message);
+                });
+            });
+          return result;
+        }
+      } else {
+        throw new HttpException('Files not uploaded', 500);
+      }
+    } catch (e) {
+      throw new HttpException(e.message, 500);
+    }
+  }
+  async createAndGenerateInvoice(
+    user: UserDashboard,
+    files: Express.Multer.File[],
+    body: CreateMyGRPOValidatorDTO,
+  ) {
+    try {
+      const { BILLNO, BILLDATE, ITEMS, BPLId } = body;
+      const GrpoItems: Array<DataProps> = await JSON.parse(ITEMS);
+      // console.log(GrpoItems, ' GRPO ITEMS');
+      const areFilesUploaded = await this.uploadFiles(files);
+      if (areFilesUploaded) {
+        const CurrentDocEntry: Result<{ DOCENTRY: string }> =
+          await executeAndReturnResult(
+            `SELECT IFNULL(MAX("DOCENTRY"),0) AS "DOCENTRY" FROM "SRM_OGRPO";`,
+          );
+        // const CurrentDocEntry = await createStatementAndExecute(
+        //   ` SELECT IFNULL(MAX("DOCENTRY"),0) AS "DOCENTRY" FROM "SRM_OGRPO"`,
+        //   [],
+        // );
+        if (CurrentDocEntry.count !== 0) {
+          const DocEntry = JSON.parse(CurrentDocEntry[0].DOCENTRY) + 1;
+          await global.connection.beginTransaction();
+          const result = await executeAndReturnResult(
+            `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS,BPLID) VALUES ('${DocEntry}', '${BILLNO}', '${BILLDATE}', '${user.CODE}', '${body.STATUS}','${body.BPLId}');`,
+            true,
+          )
+            // const result = await createStatementAndExecute(
+            //   `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS) VALUES (?,?,?,?,?)`,
+            //   [DocEntry, BILLNO, BILLDATE, user.CODE, body.STATUS],
+            // )
+            .then(async () => {
+              await new Promise(async (res, rej) => {
+                let count = 0;
+                await GrpoItems.forEach(async (item) => {
+                  // await executeAndReturnResult(
+                  //   `INSERT INTO SRM_GRPO1 (DOCENTRY, LINEID, PONO, GRPONO ,PODATE, ITEMCODE, ITEMDSC, SHIPDATE, RECEIVEDQTY, BILLQTY) VALUES ('${DocEntry}', '${item.LineNum}', '${item['PO#']}', '${item['GRPO#']}', '${item.DocDate}', '${item.ItemCode}', '${item['Item Dsc']}', '${item.ShipDate}', '${item.ReceivedQty}', '${item.BillQty}');`,
+                  //   true,
+                  // )
+                  // console.log(item, ' ITEMS');
+                  await executeAndReturnResult(
+                    `INSERT INTO SRM_GRPO1 (DOCENTRY,LINEDOCENTRY,LINENUM,PONO,GRPONO,PODATE,ITEMCODE,ITEMDSC,SHIPDATE,BILLQTY,LINETOTAL) VALUES ('${DocEntry}', '${item.LINEDOCENTRY}', '${item.LineNum}', '${item['PONO']}', '${item['GRPONO']}', '${item.PODATE}', '${item.ITEMCODE}', '${item['ITEMDSC']}', '${item.SHIPDATE}', '${item.BILLQTY}', '${item.LINETOTAL}');
+                  `,
+                    true,
+                  )
+                    // await createStatementAndExecute(
+                    //   `INSERT INTO SRM_GRPO1 (DOCENTRY, LINEID, PONO, GRPONO ,PODATE, ITEMCODE, ITEMDSC, SHIPDATE, RECEIVEDQTY, BILLQTY) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+                    //   [
+                    //     DocEntry,
+                    //     item.LineNum,
+                    //     item['PO#'],
+                    //     item['GRPO#'],
+                    //     item.DocDate,
+                    //     item.ItemCode,
+                    //     item['Item Dsc'],
+                    //     item.ShipDate,
+                    //     item.ReceivedQty,
+                    //     item.BillQty,
+                    //   ],
+                    // )
+                    .then(() => {
+                      count++;
+                      if (count == GrpoItems.length) {
+                        res(true);
+                      }
+                    })
+                    .catch(async (e) => {
+                      rej(e);
+                    });
+                });
+              })
+                .then(async (res: boolean) => {
+                  if (res) {
+                    await new Promise(async (resolve, reject) => {
+                      let count = 0;
+                      await files.forEach(async (file, index) => {
+                        const fileInsert = await executeAndReturnResult(
+                          `INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES ('${DocEntry}', '${
+                            file.originalname
+                          }', '${'\\\\192.168.5.191\\Backup\\ZAINWEBSITETESTING\\SRM\\attachments\\'}');
+                      `,
+                          true,
+                        )
+                          // const fileInsert = await createStatementAndExecute(
+                          //   ` INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES (?,?,?)`,
+                          //   [
+                          //     DocEntry,
+                          //     file.originalname,
+                          //     '\\\\192.168.5.191\\Backup\\ZAINWEBSITETESTING\\SRM\\attachments\\',
+                          //   ],
+                          // )
+                          .then(() => {
+                            count++;
+                            if (count == files.length) {
+                              resolve(true);
+                            }
+                          })
+                          .catch(async (e) => {
+                            await global.connection.rollback();
+                            reject(e);
+                          });
+                      });
+                    })
+                      .then(async () => {
+                        await global.connection.commit();
+                        const sapPayload = {
+                          CardCode: user.CODE,
+                          DocObjectCode: 'oPurchaseInvoices',
+                          BPL_IDAssignedToInvoice: BPLId,
+                          DocumentLines: GrpoItems.map((it, index) => {
+                            return {
+                              LineNum: index,
+                              ItemCode: it.ITEMCODE,
+                              Quantity: it.BILLQTY,
+                              BaseType: 20,
+                              BaseLine: it.LineNum,
+                              BaseEntry: it.LINEDOCENTRY,
+                            };
+                          }),
+                        };
+                        const result: SAPDRAFTSUCCESS =
+                          await this.generateMyInvoice(
+                            sapPayload,
+                            user,
+                            files,
+                            GrpoItems,
+                            BPLId,
+                          );
+                        if (result) {
+                          const { DocEntry: SuccessDocEntry } = result;
+                          // Update SRM_GRPO DRAFTID
+                          await global.connection.beginTransaction();
+                          await executeAndReturnResult(
+                            `UPDATE SRM_OGRPO SET DRAFTID='${SuccessDocEntry}' WHERE DOCENTRY='${DocEntry}';`,
+                            true,
+                          ).then(async () => {
+                            await global.connection.commit();
+                          });
+                        }
+                      })
+                      .catch(async (e) => {
+                        await global.connection.rollback();
+                        // return { message: e.message };
+                        throw new Error(e.message);
+                      });
+                  } else {
+                    await global.connection.rollback();
+                    return { message: 'Error inserting items' };
+                  }
+                })
+                .catch(async (e) => {
+                  await global.connection.rollback();
+                  throw new Error(e.message);
+                });
+            });
+          return result;
+        }
+      } else {
+        throw new HttpException('Files not uploaded', 500);
+      }
+    } catch (e) {
+      throw new HttpException(e.message, 500);
+    }
+  }
+  async createMyDraftPO(
+    user: UserDashboard,
+    files: Express.Multer.File[],
+    body: CreateMyGRPOValidatorDTO,
+  ) {
+    try {
+      const { BILLNO, BILLDATE, ITEMS, BPLId } = body;
+      const GrpoItems: Array<DataProps> = await JSON.parse(ITEMS);
+      // console.log(GrpoItems, ' GRPO ITEMS');
+      const areFilesUploaded = await this.uploadFiles(files);
+      if (areFilesUploaded) {
+        const CurrentDocEntry: Result<{ DOCENTRY: string }> =
+          await executeAndReturnResult(
+            `SELECT IFNULL(MAX("DOCENTRY"),0) AS "DOCENTRY" FROM "SRM_OGRPO";`,
+          );
+        if (CurrentDocEntry.count !== 0) {
+          const DocEntry = JSON.parse(CurrentDocEntry[0].DOCENTRY) + 1;
+          await global.connection.beginTransaction();
+          const result = await executeAndReturnResult(
+            `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS,BPLID) VALUES ('${DocEntry}', '${BILLNO}', '${BILLDATE}', '${user.CODE}', '${body.STATUS}','${body.BPLId}');`,
+            true,
+          ).then(async () => {
+            await new Promise(async (res, rej) => {
+              let count = 0;
+              await GrpoItems.forEach(async (item) => {
+                await executeAndReturnResult(
+                  `INSERT INTO SRM_GRPO1 (DOCENTRY,LINEDOCENTRY,LINENUM,PONO,GRPONO,PODATE,ITEMCODE,ITEMDSC,SHIPDATE,BILLQTY,LINETOTAL) VALUES ('${DocEntry}', '${item.LINEDOCENTRY}', '${item.LineNum}', '${item['PONO']}', '${item['GRPONO']}', '${item.PODATE}', '${item.ITEMCODE}', '${item['ITEMDSC']}', '${item.SHIPDATE}', '${item.BILLQTY}', '${item.LINETOTAL}');
+                  `,
+                  true,
+                )
+                  .then(() => {
+                    count++;
+                    if (count == GrpoItems.length) {
+                      res(true);
+                    }
+                  })
+                  .catch(async (e) => {
+                    rej(e);
+                  });
+              });
+            })
+              .then(async (res: boolean) => {
+                if (res) {
+                  await new Promise(async (resolve, reject) => {
+                    let count = 0;
+                    await files.forEach(async (file, index) => {
+                      const fileInsert = await executeAndReturnResult(
+                        `INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES ('${DocEntry}', '${
+                          file.originalname
+                        }', '${'\\\\192.168.5.191\\Backup\\ZAINWEBSITETESTING\\SRM\\attachments\\'}');
+                      `,
+                        true,
+                      )
+                        .then(() => {
+                          count++;
+                          if (count == files.length) {
+                            resolve(true);
+                          }
+                        })
+                        .catch(async (e) => {
+                          await global.connection.rollback();
+                          reject(e);
+                        });
+                    });
+                  })
+                    .then(async () => {
+                      await global.connection.commit();
+                      return { message: 'GRPO Created' };
+                    })
+                    .catch(async (e) => {
+                      await global.connection.rollback();
+                      // return { message: e.message };
+                      throw new Error(e.message);
+                    });
+                } else {
+                  await global.connection.rollback();
+                  return { message: 'Error inserting items' };
+                }
+              })
+              .catch(async (e) => {
+                await global.connection.rollback();
+                throw new Error(e.message);
+              });
+          });
+          return result;
+        }
+      } else {
+        throw new HttpException('Files not uploaded', 500);
+      }
+    } catch (e) {
+      throw new HttpException(e.message, 500);
+    }
+  }
+
+  async generateMyInvoice(
+    payload: {
+      CardCode: string;
+      DocObjectCode: string;
+      BPL_IDAssignedToInvoice: string;
+      DocumentLines: {
+        LineNum: number;
+        ItemCode: string;
+        Quantity: number;
+        BaseType: number;
+        BaseLine: number;
+        BaseEntry: string;
+      }[];
+    },
+    user: UserDashboard,
+    files: Express.Multer.File[],
+    GrpoItems: Array<DataProps>,
+    BPLId: number | string,
+  ) {
+    try {
+      const cookies = await this.sapSercice.loginSAPUser({
+        code: 'admin03',
+        password: 'hamza@815',
+      });
+      // console.log(cookies, ' Cookies');
+
+      // console.log(sapPayload, ' SAP Payload');
+      const attachmentABS = await this.sapSercice.addAttachments(files);
+      const { AbsoluteEntry, data } = attachmentABS;
+      // console.log({
+      //   ...sapPayload,
+      //   AttachmentEntry: AbsoluteEntry,
+      // });
+      return await axios
+        .post(
+          'https://sap.dfl.com.pk:50000/b1s/v1/Drafts',
+          { ...payload, AttachmentEntry: AbsoluteEntry },
+          {
+            withCredentials: true,
+            httpsAgent: new Agent({
+              rejectUnauthorized: false,
+            }),
+            headers: {
+              // cookies: `B1SESSION=${cookies['B1SESSION']},ROUTEID=${cookies['ROUTEID']}`,
+              cookies: cookies.fullCookie.join(','),
+              cookie: `${cookies['setCookies']}`,
+            },
+          },
+        )
+        .then((res) => {
+          // console.log(res.data, ' SAP ENTRY');
+          // return { message: 'GRPO And Invoice Created' };
+          return res.data;
+        })
+        .catch((e) => {
+          console.log(e?.response?.data?.error?.message?.value, ' SAP ERROR');
+          throw new Error(e?.response?.data?.error?.message?.value);
+        });
+    } catch (e) {
+      console.log(e.message);
+      throw new Error(e.message);
     }
   }
   /**
