@@ -27,7 +27,7 @@ export class AuthService {
             ID: string;
           }
         > = await executeAndReturnResult(
-          `Select * FROM "SRMUSERS" WHERE "EMAIL" = '${body.EMAIL}';`,
+          `Select * FROM "SRMUSERS" WHERE "EMAIL" = TRIM('${body.EMAIL.trim()}');`,
         );
 
         // let existingUserCommand = await global.connection.createStatement();
@@ -90,7 +90,7 @@ export class AuthService {
     //  check if user exists against en email;
     try {
       const isUser: Result<User> = await executeAndReturnResult(
-        `SELECT * FROM SRMUSERS WHERE EMAIL = '${email}';`,
+        `SELECT * FROM SRMUSERS WHERE EMAIL = TRIM('${email.trim()}');`,
       );
       // const isUser: Result<User> = await createStatementAndExecute(
       //   'SELECT * FROM SRMUSERS WHERE "EMAIL" = ?',
@@ -117,7 +117,7 @@ export class AuthService {
         // });
         await global.connection.beginTransaction();
         const result: Result<any> = await executeAndReturnResult(
-          `INSERT INTO SRM_OTP (CODE,EMAIL,EXPIRY,USERID) VALUES ('${code}','${email}','${expiryTime}','${isUser[0].ID}');`,
+          `INSERT INTO SRM_OTP (CODE,EMAIL,EXPIRY,USERID) VALUES (TRIM('${code}'),TRIM('${email}'),TRIM('${expiryTime}'),TRIM('${isUser[0].ID}'));`,
           true,
         );
         if (result.count !== 0) {
@@ -141,7 +141,7 @@ export class AuthService {
     try {
       const checkEmailExist = await executeAndReturnResult(
         `
-      SELECT * FROM SRMUSERS WHERE EMAIL = '${body.email}';
+      SELECT * FROM SRMUSERS WHERE EMAIL = TRIM('${body.email.trim()}');
     `,
       );
       // const checkEmailExist = await createStatementAndExecute(
@@ -157,7 +157,7 @@ export class AuthService {
           ID: string;
           ISVERIFIED: '0' | '1';
         }> = await executeAndReturnResult(
-          `SELECT * FROM SRM_OTP WHERE EMAIL = '${body.email}' AND "CODE" = '${body.otp}';`,
+          `SELECT * FROM SRM_OTP WHERE EMAIL = TRIM('${body.email.trim()}') AND "CODE" = TRIM('${body.otp.trim()}');`,
         );
 
         // const checkOTP = await createStatementAndExecute(
@@ -177,7 +177,7 @@ export class AuthService {
             } else {
               await global.connection.beginTransaction();
               const updatePassword = await executeAndReturnResult(
-                `UPDATE SRMUSERS SET PASSWORD = '${body.password}' WHERE EMAIL = '${body.email}';`,
+                `UPDATE SRMUSERS SET PASSWORD = TRIM('${body.password.trim()}') WHERE EMAIL = TRIM('${body.email.trim()}');`,
                 true,
               );
               // const updatePassword = await createStatementAndExecute(
@@ -186,7 +186,7 @@ export class AuthService {
               // );
               if (updatePassword.count !== 0) {
                 const updateOTP = await executeAndReturnResult(
-                  `UPDATE SRM_OTP SET ISVERIFIED = true WHERE EMAIL = '${body.email}' AND "CODE" = '${body.otp}';
+                  `UPDATE SRM_OTP SET ISVERIFIED = true WHERE EMAIL = TRIM('${body.email.trim()}') AND "CODE" = TRIM('${body.otp.trim()}');
               `,
                   true,
                 );

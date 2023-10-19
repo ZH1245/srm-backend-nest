@@ -45,7 +45,7 @@ export class GrpoController {
    */
   @Get('my-pending-grpos')
   async getMyPendingGrpos(
-    @Req() req: Request & { user?: string | JwtPayload },
+    @Req() req: Request & { user?: UserDashboard },
     @Res() res: Response,
   ) {
     const result = await this.grpoService.getMyPendingGrpos(req.user);
@@ -183,14 +183,17 @@ export class GrpoController {
     @Param('id') id: MyCompletedGRPOSByID['id'],
     @Res() res: Response,
   ) {
-    const result: { data: any; ATTACHMENTNAME: string } =
-      await this.grpoService.downloadAttachment(id);
+    const result: { data: any; ATTACHMENTNAME: string; contentType: string } =
+      await this.grpoService.downloadAttachment(id, res);
     if (result) {
-      res.setHeader('Content-Type', 'application/octet-stream');
+      // res.setHeader('Content-Type', 'application/octet-stream');
+      res.setHeader('Content-Type', result.contentType);
       res.setHeader(
         'Content-Disposition',
         `attachment; filename=${result.ATTACHMENTNAME}`,
       );
+      res.setHeader('file-name', result.ATTACHMENTNAME);
+      res.setHeader('Content-Length', result.data.length);
       return res.send(result.data);
     } else {
       throw new HttpException('Invalid Attachment', 400);

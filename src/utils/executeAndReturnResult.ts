@@ -10,6 +10,7 @@ export async function executeAndReturnResult(
     const result: Result<any> = await global.connection
       .query(params)
       .catch((e) => {
+        // console.log(params);
         console.log(e);
         throw new Error(e.message);
       });
