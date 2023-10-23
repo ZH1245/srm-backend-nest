@@ -280,9 +280,28 @@ export class GrpoService {
       //   [user.CODE, 'ready', id],
       // );
       if (header.count !== 0) {
-        result.header = header;
+        result.header = header[0];
+        // BEFORE AVAIL QTY FOR EDIT ROW
+        // const items = await executeAndReturnResult(
+        //   `SELECT "PONO" AS "PO#","GRPONO" AS "GRPO#","PODATE" AS "PO Date","ITEMCODE" AS "Item Code","ITEMDSC" AS "Item Description","SHIPDATE" AS "Ship Date","BILLQTY" AS "Bill Qty" FROM "SRM_GRPO1" T0 WHERE TO_VARCHAR(T0."DOCENTRY") = TO_VARCHAR(TRIM('${id}'));`,
+        // );
         const items = await executeAndReturnResult(
-          `SELECT "PONO" AS "PO#","GRPONO" AS "GRPO#","PODATE" AS "PO Date","ITEMCODE" AS "Item Code","ITEMDSC" AS "Item Description","SHIPDATE" AS "Ship Date","BILLQTY" AS "Bill Qty" FROM "SRM_GRPO1" T0 WHERE TO_VARCHAR(T0."DOCENTRY") = TO_VARCHAR(TRIM('${id}'));`,
+          `SELECT
+          "ID",
+          "PONO" AS "PO#",
+         "GRPONO" AS "GRPO#",
+         "PODATE" AS "PO Date",
+         "ITEMCODE" AS "Item Code",
+         "ITEMDSC" AS "Item Description",
+         "SHIPDATE" AS "Ship Date",
+         "BILLQTY" AS "Bill Qty" ,
+         "LINENUM",
+         --CASE WHEN T2."OpenQty" IS NULL THEN IFNULL(T2."OpenQty",0) ELSE T2."OpenQty" - T0."BILLQTY" END AS "AvailQty",
+         T2."OpenQty" AS "AvailQty"
+       FROM "SRM_GRPO1" T0
+       LEFT JOIN "OPDN" T1 ON T1."DocNum"= T0."GRPONO" 
+       LEFT JOIN "PDN1"  T2 ON T1."DocEntry" = T2."DocEntry" AND T0."LINENUM" = T2."LineNum" AND T0."ITEMCODE" = T2."ItemCode"
+       WHERE TO_VARCHAR(T0."DOCENTRY") = TO_VARCHAR(TRIM('${id}'))`,
         );
         // const items = await createStatementAndExecute(
         //   `SELECT "DOCENTRY","LINEID","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","RECEIVEDQTY","BILLQTY" FROM "SRM_GRPO1" T0 WHERE T0."DOCENTRY" = ?`,
