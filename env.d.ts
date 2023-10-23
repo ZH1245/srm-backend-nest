@@ -21,6 +21,7 @@ declare global {
       hana_schema_production: string;
       hana_schema_development: string;
       database_development: string;
+      SHARE_FOLDER_PATH: string;
     }
   }
 }

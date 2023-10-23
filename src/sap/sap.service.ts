@@ -15,7 +15,7 @@ export class SapService {
           Password: user.password,
           UserName: user.code,
           // CompanyDB: process.env.database,
-          CompanyDB: 'TESTDFL19102023',
+          CompanyDB: 'TESTDFL20102023',
           // CompanyDB: process.env.hana_schema,
           // CompanyDB: "APPHIERARCHY19122022",
           // Password: "1234",
@@ -122,7 +122,6 @@ export class SapService {
         return { data: res.data, AbsoluteEntry: res.data.AbsoluteEntry };
       })
       .catch((e) => {
-        // console.log(e.request);
         console.log(e?.response?.data?.error?.message?.value || e?.message);
         throw Error(e?.response?.data?.error?.message?.value || e?.message);
       });

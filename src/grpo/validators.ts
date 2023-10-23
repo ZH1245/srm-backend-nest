@@ -38,6 +38,11 @@ export class CreateMyGRPOValidatorDTO {
   @IsNotIn(['undefined', 'null'], { message: 'Items are required' })
   ITEMS: string;
 
+  @IsString({ message: 'Series are required' })
+  @IsNotEmpty({ message: 'Series are required' })
+  @IsNotIn(['undefined', 'null'], { message: 'Series are required' })
+  SERIES: string;
+
   @IsString({ message: 'Status is required' })
   @IsNotEmpty({ message: 'Status is required' })
   @IsNotIn(['undefined', 'null'], { message: 'Status is required' })

@@ -8,6 +8,8 @@ import {
   NewUserDTO,
 } from './type';
 import { EditUserValidatorDTO } from './validators';
+import { executeAndReturnResult } from 'src/utils/executeAndReturnResult';
+import { EmailService } from 'src/email/email.service';
 // -------------------------------------------------------------------------
 
 @Injectable()
@@ -15,6 +17,7 @@ import { EditUserValidatorDTO } from './validators';
  * Service for managing user data.
  */
 export class UserService {
+  constructor(private readonly emailService: EmailService) {}
   /**
    * Retrieves a list of users who have not been created yet.
    * @returns A string indicating the operation performed.
@@ -239,10 +242,11 @@ export class UserService {
     if (existingUser.count !== 0) {
       throw new HttpException('User already exists with same Email', 400);
     } else {
-      const result = await global.connection
-        .query(
-          `INSERT INTO "SRMUSERS" ("NAME","EMAIL","ROLE","MOBILE","PASSWORD","CODE") VALUES ('${body.NAME}','${body.EMAIL}','${body.ROLE}','${body.MOBILE}','${body.PASSWORD}','${body.CODE}');`,
-        )
+      await global.connection.beginTransaction();
+      const result = await executeAndReturnResult(
+        `INSERT INTO "SRMUSERS" ("NAME","EMAIL","ROLE","MOBILE","PASSWORD","CODE") VALUES ('${body.NAME}','${body.EMAIL}','${body.ROLE}','${body.MOBILE}','${body.PASSWORD}','${body.CODE}');`,
+        true,
+      )
         // const result = await createStatementAndExecute(
         //   'INSERT INTO "SRMUSERS" ("NAME","EMAIL","ROLE","MOBILE","PASSWORD","CODE") VALUES (?,?,?,?,?,?);',
         //   [
@@ -254,7 +258,13 @@ export class UserService {
         //     body.CODE,
         //   ],
         // )
-        .then(() => {
+        .then(async () => {
+          await this.emailService.sendNewUserEmail({
+            name: body.NAME,
+            code: body.CODE,
+            password: body.PASSWORD,
+            email: body.EMAIL,
+          });
           return { message: 'User created successfully' };
         })
         .catch(async (e) => {

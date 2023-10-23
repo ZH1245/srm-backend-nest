@@ -20,8 +20,15 @@ import { SapService } from './sap/sap.service';
 import { SapModule } from './sap/sap.module';
 import { EmailService } from './email/email.service';
 import { EmailModule } from './email/email.module';
+import { ThrottlerModule } from '@nestjs/throttler';
 @Module({
   imports: [
+    ThrottlerModule.forRoot([
+      {
+        ttl: 60000,
+        limit: 10,
+      },
+    ]),
     UserModule,
     AuthModule,
     ConfigModule.forRoot({}),

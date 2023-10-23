@@ -139,7 +139,7 @@ export class DashboardService {
       }
 
       const completed: Result<{ COUNT: string }> = await executeAndReturnResult(
-        `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = 'completed';`,
+        `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = 'completed' AND "DRAFTID" IS NOT NULL;`,
       );
       // const completed: Result<{ COUNT: string }> =
       //   await createStatementAndExecute(

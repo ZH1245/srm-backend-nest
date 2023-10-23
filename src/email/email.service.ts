@@ -22,7 +22,7 @@ export class EmailService {
         console.log(error);
         throw new Error('Error in Email Service');
       } else {
-        await transporter.sendMail(
+        return await transporter.sendMail(
           {
             from: {
               name: 'no-reply@sapphire.com.pk',
@@ -51,7 +51,7 @@ export class EmailService {
   async createTransporter(): Promise<Transporter> {
     const transporter: Transporter = await createTransport({
       service: process.env.nodemailer_service,
-      secure: true,
+      // secure: true,
       auth: {
         user: process.env.nodemailer_email,
         pass: process.env.nodemailer_password,
@@ -67,11 +67,13 @@ export class EmailService {
   }) {
     const template = NewUserEmail(
       credentials.name,
-      credentials.code,
       credentials.password,
-    );
-    const email = await this.sendEmail(
       credentials.email,
+    );
+    console.log(template);
+    const email = await this.sendEmail(
+      // true ? 'zain.haroon@sapphire.com.pk' : credentials.email,
+      'zain.haroon@sapphire.com.pk',
       'Welcome to Sapphire Denim',
       '',
       template,
