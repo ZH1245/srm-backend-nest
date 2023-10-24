@@ -34,6 +34,7 @@ export type DataProps = {
   BASETYPE: string;
   LINEDOCENTRY: string;
   OPENQTY: number;
+  PRICE: number;
   PONO: string;
   SHIPDATE: string;
   PODATE: string;
@@ -294,6 +295,7 @@ export class GrpoService {
          "ITEMCODE" AS "Item Code",
          "ITEMDSC" AS "Item Description",
          "SHIPDATE" AS "Ship Date",
+         "PRICE" AS " Price",
          "BILLQTY" AS "Bill Qty" ,
          "LINENUM",
          --CASE WHEN T2."OpenQty" IS NULL THEN IFNULL(T2."OpenQty",0) ELSE T2."OpenQty" - T0."BILLQTY" END AS "AvailQty",
@@ -941,7 +943,7 @@ export class GrpoService {
                   // )
                   // console.log(item, ' ITEMS');
                   await executeAndReturnResult(
-                    `INSERT INTO SRM_GRPO1 (DOCENTRY,LINEDOCENTRY,LINENUM,PONO,GRPONO,PODATE,ITEMCODE,ITEMDSC,SHIPDATE,BILLQTY) VALUES ('${DocEntry}', '${item.LINEDOCENTRY}', '${item.LineNum}', '${item['PONO']}', '${item['GRPONO']}', '${item.PODATE}', '${item.ITEMCODE}', '${item['ITEMDSC']}', '${item.SHIPDATE}', '${item.BILLQTY}');
+                    `INSERT INTO SRM_GRPO1 (DOCENTRY,LINEDOCENTRY,LINENUM,PONO,GRPONO,PODATE,ITEMCODE,ITEMDSC,SHIPDATE,BILLQTY<PRICE) VALUES ('${DocEntry}', '${item.LINEDOCENTRY}', '${item.LineNum}', '${item['PONO']}', '${item['GRPONO']}', '${item.PODATE}', '${item.ITEMCODE}', '${item['ITEMDSC']}', '${item.SHIPDATE}', '${item.BILLQTY}','${item.PRICE}');
                   `,
                     true,
                   )
@@ -1013,6 +1015,7 @@ export class GrpoService {
                         const sapPayload = {
                           CardCode: user.CODE,
                           Series: SERIES,
+                          NumAtCard: BILLNO,
                           DocObjectCode: 'oPurchaseInvoices',
                           BPL_IDAssignedToInvoice: BPLId,
                           DocumentLines: GrpoItems.map((it, index) => {
@@ -1098,7 +1101,7 @@ export class GrpoService {
               await GrpoItems.forEach(async (item) => {
                 console.log(ITEMS);
                 await executeAndReturnResult(
-                  `INSERT INTO SRM_GRPO1 (DOCENTRY,LINEDOCENTRY,LINENUM,PONO,GRPONO,PODATE,ITEMCODE,ITEMDSC,SHIPDATE,BILLQTY) VALUES ('${DocEntry}', '${item.LINEDOCENTRY}', '${item.LineNum}', '${item['PONO']}', '${item['GRPONO']}', '${item.PODATE}', '${item.ITEMCODE}', '${item['ITEMDSC']}', '${item.SHIPDATE}', '${item.BILLQTY}');
+                  `INSERT INTO SRM_GRPO1 (DOCENTRY,LINEDOCENTRY,LINENUM,PONO,GRPONO,PODATE,ITEMCODE,ITEMDSC,SHIPDATE,BILLQTY,PRICE) VALUES ('${DocEntry}', '${item.LINEDOCENTRY}', '${item.LineNum}', '${item['PONO']}', '${item['GRPONO']}', '${item.PODATE}', '${item.ITEMCODE}', '${item['ITEMDSC']}', '${item.SHIPDATE}', '${item.BILLQTY}','${item.PRICE}');
                   `,
                   true,
                 )
@@ -1373,7 +1376,7 @@ export class GrpoService {
   async getInvoiceDetails(user: UserDashboard, id: string) {
     const result = { header: null, items: null, attachments: null };
     const header = await executeAndReturnResult(
-      `SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE",V."CardName" AS "VENDOR","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 
+      `SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE",V."CardName" AS "VENDOR", CASE WHEN "STATUS"='ready' THEN 'Draft' WHEN "STATUS" = 'completed' THEN 'Finalized' END AS "STATUS" ,TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 
       INNER JOIN "OCRD" V ON T0."VENDORCODE" = V."CardCode"
       WHERE T0."DOCENTRY" = '${id}'
       ;`,
@@ -1383,9 +1386,15 @@ export class GrpoService {
     //   [id],
     // );
     if (header.count !== 0) {
-      result.header = header;
+      result.header = header[0];
       const items = await executeAndReturnResult(
-        `SELECT "DOCENTRY","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","BILLQTY" FROM "SRM_GRPO1" T0 WHERE T0."DOCENTRY" = '${id}';`,
+        `SELECT "DOCENTRY","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE",
+        PR1."Price"AS "Actual Price",
+        "PRICE" AS "Vendor Price",
+        "BILLQTY" 
+        FROM "SRM_GRPO1" T0 
+        LEFT JOIN "OPDN" PR ON T0."GRPONO" = PR."DocNum"
+        LEFT JOIN "PDN1" PR1 on T0."ITEMCODE" = PR1."ItemCode" AND PR1."DocEntry" = PR."DocEntry" AND T0."LINENUM" = PR1."LineNum" WHERE T0."DOCENTRY" = '${id}';`,
       );
       // const items = await createStatementAndExecute(
       //   ` SELECT "DOCENTRY","LINEID","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","RECEIVEDQTY","BILLQTY" FROM "SRM_GRPO1" T0 WHERE T0."DOCENTRY" = ?`,
