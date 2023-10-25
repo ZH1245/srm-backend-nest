@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { error } from 'console';
 import { createTransport, type Transporter } from 'nodemailer';
-import { NewUserEmail } from './UserEmailTemplates';
+import { NewUserEmail, OTPEmail } from './UserEmailTemplates';
 type SendMailOptions = {
   to: string | Array<string>;
   subject: string;
@@ -70,11 +70,31 @@ export class EmailService {
       credentials.password,
       credentials.email,
     );
-    console.log(template);
+    // console.log(template);
     const email = await this.sendEmail(
       // true ? 'zain.haroon@sapphire.com.pk' : credentials.email,
       'zain.haroon@sapphire.com.pk',
       'Welcome to Sapphire Denim',
+      '',
+      template,
+    );
+    return email;
+  }
+  async sendOTPEmail(credentials: {
+    name: string;
+    email: string;
+    otp: string;
+  }) {
+    const template = OTPEmail(
+      credentials.name,
+      credentials.otp,
+      credentials.email,
+    );
+    // console.log(template);
+    const email = await this.sendEmail(
+      // true ? 'zain.haroon@sapphire.com.pk' : credentials.email,
+      'zain.haroon@sapphire.com.pk',
+      'Reset Password -  Sapphire Denim Portal',
       '',
       template,
     );

@@ -295,7 +295,7 @@ export class GrpoService {
          "ITEMCODE" AS "Item Code",
          "ITEMDSC" AS "Item Description",
          "SHIPDATE" AS "Ship Date",
-         "PRICE" AS " Price",
+         "PRICE" AS "Price",
          "BILLQTY" AS "Bill Qty" ,
          "LINENUM",
          --CASE WHEN T2."OpenQty" IS NULL THEN IFNULL(T2."OpenQty",0) ELSE T2."OpenQty" - T0."BILLQTY" END AS "AvailQty",

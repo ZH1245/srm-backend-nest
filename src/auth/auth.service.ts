@@ -8,11 +8,13 @@ import { sign } from 'jsonwebtoken';
 import * as moment from 'moment';
 import { User } from 'src/user/type';
 import { executeAndReturnResult } from 'src/utils/executeAndReturnResult';
+import { EmailService } from 'src/email/email.service';
 // import { createStatementAndExecute } from 'src/utils/createStatementAndExecute';
 // import { randomBytes } from 'crypto';
 // -------------------------------------------------------------------------
 @Injectable()
 export class AuthService {
+  constructor(private readonly emailService: EmailService) {}
   async login(body: LoginDTO) {
     const { PASSWORD, EMAIL } = body;
     const doesEmailContainSQL = validateSQL(EMAIL);
@@ -123,6 +125,11 @@ export class AuthService {
         if (result.count !== 0) {
           //   send email
           await global.connection.commit();
+          await this.emailService.sendOTPEmail({
+            name: isUser[0].NAME,
+            email: isUser[0].EMAIL,
+            otp: code.toString(),
+          });
           return { message: 'OTP Sent to Email', data: true };
         } else {
           throw new HttpException('Error Generating OTP', 400);

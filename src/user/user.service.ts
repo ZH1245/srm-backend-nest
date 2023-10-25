@@ -226,15 +226,11 @@ export class UserService {
     // const salt = await genSalt(10);
     // const hashedPassword = await hash(body.PASSWORD, salt);
     // ---------------------------------------------
-    const existingUser = await global.connection
-      .query(
-        `
-    SELECT "EMAIL" FROM "SRMUSERS" WHERE "EMAIL" = '${body.EMAIL}'  ;
-    `,
-      )
-      .catch((e) => {
-        throw new HttpException(e.message, 400);
-      });
+    const existingUser = await executeAndReturnResult(
+      `SELECT "EMAIL" FROM "SRMUSERS" WHERE "EMAIL" = '${body.EMAIL}';`,
+    ).catch((e) => {
+      throw new HttpException(e.message, 400);
+    });
     // const existingUser = await createStatementAndExecute(
     //   'SELECT "EMAIL" FROM "SRMUSERS" WHERE "EMAIL" = ?;',
     //   [body.EMAIL],
@@ -259,6 +255,7 @@ export class UserService {
         //   ],
         // )
         .then(async () => {
+          await global.connection.commit();
           await this.emailService.sendNewUserEmail({
             name: body.NAME,
             code: body.CODE,
