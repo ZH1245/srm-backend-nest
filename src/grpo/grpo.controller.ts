@@ -2,11 +2,13 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpException,
   Param,
   Patch,
   Post,
+  Put,
   Req,
   Res,
   UploadedFiles,
@@ -232,6 +234,52 @@ export class GrpoController {
   ) {
     const user = req.user;
     const result = await this.grpoService.getInvoiceDetails(user, id);
+    return res.json({ data: result.data, message: result.message });
+  }
+  @Put('update-grpo')
+  @UseInterceptors(AnyFilesInterceptor())
+  async updateGrpo(
+    @Body() body: any,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Req() req: Request & { user?: UserDashboard },
+    @Res() res: Response,
+  ) {
+    const user = req.user;
+    const result: any = await this.grpoService.updateGrpo(user, files, body);
+    return res.json({
+      data: result.data ?? null,
+      message: result.message ?? 'Updated Successfully',
+      // data: (result?.data ?? null) || null,
+      // message: (result?.message ?? 'DONE') || 'Done',
+    });
+  }
+  @Put('update-grpo-and-generate-invoice')
+  @UseInterceptors(AnyFilesInterceptor())
+  async updateGrpoAndGenerateInvoice(
+    @Body() body: any,
+    @UploadedFiles() files: Express.Multer.File[],
+    @Req() req: Request & { user?: UserDashboard },
+    @Res() res: Response,
+  ) {
+    const user = req.user;
+    const result: any = await this.grpoService.updateGrpoAndGenerateInvoice(
+      user,
+      files,
+      body,
+    );
+    return res.json({
+      data: result.data ?? null,
+      message: result.message ?? 'Updated Successfully',
+      // data: (result?.data ?? null) || null,
+      // message: (result?.message ?? 'DONE') || 'Done',
+    });
+  }
+  @Delete('delete-grpo/:id')
+  async deleteGrpo(
+    @Param('id') id: MyCompletedGRPOSByID['id'],
+    @Res() res: Response,
+  ) {
+    const result = await this.grpoService.deleteGrpo(id);
     return res.json({ data: result.data, message: result.message });
   }
 }

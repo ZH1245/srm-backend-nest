@@ -34,11 +34,20 @@ async function bootstrap() {
   //   allowedHeaders: ['Authorization', 'content-*'],
   //   methods: ['*'],
   // }),
-  await app.listen(PORT).then(() => {
-    console.log(`Server is running on port ${PORT}`);
-  });
 
-  await createConnection();
+  await createConnection()
+    .then(async () => {
+      console.log('Connected To Dabatase. Stating Server...');
+      await app.listen(PORT).then(() => {
+        console.log(`Server is running on port ${PORT}`);
+      });
+    })
+    .catch((e) => {
+      console.log(e);
+      console.log('Error connecting to database');
+      process.exit(1);
+      // return;
+    });
 }
 
 bootstrap();

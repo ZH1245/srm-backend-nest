@@ -12,7 +12,8 @@ import { SapService } from 'src/sap/sap.service';
 import axios from 'axios';
 import { SAPDRAFTSUCCESS } from './types';
 import { Response } from 'express';
-import { createReadStream } from 'fs';
+// import { createReadStream } from 'fs';
+import * as moment from 'moment';
 // -------------------------------------------------------------------------
 export type DataProps = {
   'PO#': number;
@@ -56,100 +57,88 @@ export class GrpoService {
     try {
       const doesCodeContainSQL = validateSQL(me.CODE);
       if (!doesCodeContainSQL) {
-        // const result = await executeAndReturnResult(
-        //   `SELECT
-        //       P1."BaseRef" AS "PO#",
-        //       TO_VARCHAR(TO_DATE(PR."DocDate"),'DD-MM-YYYY') AS "DocDate",
-        //       "Quantity" AS "ReceivedQty",
-        //       "Quantity" AS "BillQty",
-        //       P1."U_QtyFail" AS "RejectedQty",
-        //       TO_VARCHAR(TO_DATE(P1."ShipDate"),'DD-MM-YYYY') AS "ShipDate",
-        //       P1."ItemCode",P1."Dscription" AS "Item Dsc",
-        //       GP."U_DANo" AS "Bill#",
-        //       P1."LineNum" AS "LineNum",
-        //       P."DocNum" AS "GRPO#",
-        //       TO_VARCHAR(TO_DATE(P."DocDate"),'DD-MM-YYYY') AS "BillDate"
-        //     FROM "PDN1" P1
-        //     INNER JOIN "OPDN" P on P1."DocEntry" = P."DocEntry" AND P."CardCode" = '${me.CODE}'
-        //     INNER JOIN "OPOR" PR ON TO_VARCHAR(PR."DocNum") = TO_VARCHAR(P1."BaseRef")
-        //     LEFT JOIN "@OIGP" GP ON TO_VARCHAR(P."U_GPN") = TO_VARCHAR(GP."DocNum")
-        //     WHERE P."DocDate" >= '2023-01-01' AND P."U_GPN" IS NOT NULL
-        //     AND P1."ItemCode" NOT IN
-        //       (
-        //         SELECT "ItemCode"  FROM "PCH1" AP1
-        //         INNER JOIN "OPCH" AP ON AP."DocEntry" = AP1."DocEntry"
-        //         WHERE TO_VARCHAR(AP1."BaseRef") = TO_VARCHAR(P."DocNum") AND AP."DocStatus" <> 'C'
-        //       );`,
-        // );
-        // const result = await executeAndReturnResult(
-        //   `SELECT
-        //   P."DocNum" AS "GRPO#",
-        //   P."BPLId" AS "BranchID",
-        //   BR."BPLName" AS "BranchName",
-        //   TO_VARCHAR(TO_DATE(PR."DocDate"),'DD-MM-YYYY') AS "DocDate",
-        //   "Quantity" AS "TotalQty",
-        //   CASE WHEN P1."OpenQty" = 0 OR P1."OpenQty" IS NULL THEN P1."Quantity" ELSE P1."OpenQty" END AS "OpenQty",
-        //   --IFNULL(P1."OpenQty",P1."Quantity") AS "OpenQty",
-        //   CASE WHEN P1."OpenQty" = 0 OR P1."OpenQty" IS NULL THEN P1."Quantity" ELSE P1."OpenQty" END AS "BillQty",
-        //   --IFNULL(P1."OpenQty",P1."Quantity") AS "BillQty",
-        //   GP."U_DANo" AS "Bill#",
-        //   TO_VARCHAR(TO_DATE(P."DocDate"),'DD-MM-YYYY') AS "BillDate",
-        //   P1."BaseRef" AS "PO#",
-        //   IFNULL(P1."U_QtyFail",0) AS "RejectedQty",
-        //   IFNULL(P1."U_QtyPass",P1."Quantity") AS "PassedQty",
-        //   TO_VARCHAR(TO_DATE(P1."ShipDate"),'DD-MM-YYYY') AS "ShipDate",
-        //   P1."ItemCode",P1."Dscription" AS "Item Dsc",
-        //   P1."LineNum" AS "LineNum",
-        //   P."DocEntry" AS "LineDOCENTRY",
-        //   --P1."BaseRef" AS "LineBASEREF",
-        //   --P1."BaseType" AS "LineBASETYPE",
-        //   --P1."BaseEntry" AS "LineBASEENTRY",
-        //   --P1."BaseLine" AS "LineBASELINE",
-        //   P1."LineTotal" AS "LINETOTAL",
-        //   P1."OpenQty" AS "LINEOPENQTY"
-        // FROM "PDN1" P1
-        // INNER JOIN "OPDN" P on P1."DocEntry" = P."DocEntry" AND P."CardCode" = TRIM('${me.CODE.trim()}')
-        // INNER JOIN "OPOR" PR ON TO_VARCHAR(PR."DocNum") = TO_VARCHAR(P1."BaseRef")
-        // LEFT JOIN "@OIGP" GP ON TO_VARCHAR(P."U_GPN") = TO_VARCHAR(GP."DocNum")
-        // LEFT JOIN "OBPL" BR ON P."BPLId" = BR."BPLId"
-        // WHERE P."DocDate" >= '2023-01-01' AND P."U_GPN" IS NOT NULL
-        // AND P1."ItemCode" NOT IN
-        //   (
-        //     SELECT "ItemCode"  FROM "PCH1" AP1
-        //     INNER JOIN "OPCH" AP ON AP."DocEntry" = AP1."DocEntry"
-        //     WHERE TO_VARCHAR(AP1."BaseRef") = TO_VARCHAR(P."DocNum") AND AP."DocStatus" <> 'C'
-        //   )
-        //   AND P1."ItemCode" NOT IN (
-        //     SELECT "ITEMCODE" FROM "SRM_GRPO1" SG1
-        //     INNER JOIN "SRM_OGRPO" SG ON SG."DOCENTRY" = SG1."DOCENTRY" WHERE SG."VENDORCODE" = '${me.CODE.trim()}' AND "BILLNO" = GP."U_DANo"
-        //   );`,
-        // );
+        //   const result = await executeAndReturnResult(
+        //     `SELECT
+        //     p."CardCode",
+        //     P."DocNum" AS "GRPO#",
+        //     P."BPLId" AS "BranchID",
+        //     (SELECT "Series" FROM "VW_SRM_APSERIES" WHERE "SeriesName" = LEFT(S."SeriesName",5)) AS "Series" ,
+        //     BR."BPLName" AS "BranchName",
+        //     TO_VARCHAR(TO_DATE(PR."DocDate"),
+        //    'DD-MM-YYYY') AS "DocDate",
+        //     "Quantity" AS "TotalQty",
+        //     IFNULL(P1."OpenQty",
+        //    P1."Quantity") AS "OpenQty",
+        //     IFNULL(P1."OpenQty",
+        //    P1."Quantity") AS "BillQty",
+        //     GP."U_DANo" AS "Bill#",
+        //     TO_VARCHAR(TO_DATE(P."DocDate"),
+        //    'DD-MM-YYYY') AS "BillDate",
+        //     P1."BaseRef" AS "PO#",
+        //     IFNULL(P1."U_QtyFail",
+        //    0) AS "RejectedQty",
+        //     IFNULL(P1."U_QtyPass",
+        //    P1."Quantity") AS "PassedQty",
+        //     TO_VARCHAR(TO_DATE(P1."ShipDate"),
+        //    'DD-MM-YYYY') AS "ShipDate",
+        //     P1."ItemCode",
+        //    P1."Dscription" AS "Item Dsc",
+        //     P1."LineNum" AS "LineNum",
+        //     P."DocEntry" AS "LineDOCENTRY",
+        //     P1."BaseRef" AS "LineBASEREF",
+        //     P1."BaseType" AS "LineBASETYPE",
+        //     P1."BaseEntry" AS "LineBASEENTRY",
+        //     P1."BaseLine" AS "LineBASELINE",
+        //     P1."Price" AS "PRICE",
+        //     P1."Currency"AS "Curr",
+        //     P1."OpenQty" AS "LINEOPENQTY"
+        //  FROM "PDN1" P1
+        //  INNER JOIN "OPDN" P on P1."DocEntry" = P."DocEntry"
+        //  INNER JOIN "OPOR" PR ON TO_VARCHAR(PR."DocNum") = TO_VARCHAR(P1."BaseRef")
+        //  LEFT JOIN "@OIGP" GP ON TO_VARCHAR(P."U_GPN") = TO_VARCHAR(GP."DocNum")
+        //  LEFT JOIN "OBPL" BR ON P."BPLId" = BR."BPLId"
+        //  LEFT JOIN "SRM_GRPO1" SG1 ON P1."DocEntry" = SG1."LINEDOCENTRY" AND P1."ItemCode" = SG1."ITEMCODE"
+        //  LEFT JOIN NNM1 S ON S."Series" = P."Series"
+        //  WHERE P."DocDate" >= '2023-01-01'
+        //  AND P."U_GPN" IS NOT NULL
+        //  AND P."CardCode" = '${me.CODE}'
+        //  AND P1."ItemCode" NOT IN ( SELECT
+        //     "ItemCode"
+        //    FROM "PCH1" AP1
+        //    INNER JOIN "OPCH" AP ON AP."DocEntry" = AP1."DocEntry"
+        //    WHERE TO_VARCHAR(AP1."BaseRef") = TO_VARCHAR(P."DocNum")
+        //    AND AP."DocStatus" <> 'C' )
+        //  AND P1."ItemCode" NOT IN ( SELECT
+        //     "ItemCode"
+        //    FROM "SRM_OGRPO"
+        //    WHERE "VENDORCODE" = '${me.CODE}'
+        //    AND "BILLNO" = GP."U_DANo" )
+        //    AND SG1."LINEDOCENTRY" IS NULL
+        //    AND IFNULL(P1."OpenQty",
+        //    P1."Quantity") > 0
+        //    ;`,
+        //   );
         const result = await executeAndReturnResult(
           `SELECT
           p."CardCode",
           P."DocNum" AS "GRPO#",
           P."BPLId" AS "BranchID",
           (SELECT "Series" FROM "VW_SRM_APSERIES" WHERE "SeriesName" = LEFT(S."SeriesName",5)) AS "Series" ,
-          BR."BPLName" AS "BranchName",
-          TO_VARCHAR(TO_DATE(PR."DocDate"),
-         'DD-MM-YYYY') AS "DocDate",
+          P."BPLName" AS "BranchName",
+          (SELECT TO_VARCHAR(TO_DATE("DocDate"),'DD-MM-YYYY') FROM OPOR mm WHERE TO_VARCHAR(mm."DocNum") = P1."BaseRef")"DocDate",
           "Quantity" AS "TotalQty",
-          IFNULL(P1."OpenQty",
-         P1."Quantity") AS "OpenQty",
-          IFNULL(P1."OpenQty",
-         P1."Quantity") AS "BillQty",
+          
+          --IFNULL(P1."OpenQty",P1."Quantity") AS "OpenQty",
+          IFNULL(P1."OpenQty",P1."Quantity") AS "BillQty",
+          
           GP."U_DANo" AS "Bill#",
-          TO_VARCHAR(TO_DATE(P."DocDate"),
-         'DD-MM-YYYY') AS "BillDate",
+          TO_VARCHAR(TO_DATE(P."DocDate"),'DD-MM-YYYY') AS "BillDate",
           P1."BaseRef" AS "PO#",
-          IFNULL(P1."U_QtyFail",
-         0) AS "RejectedQty",
-          IFNULL(P1."U_QtyPass",
-         P1."Quantity") AS "PassedQty",
-          TO_VARCHAR(TO_DATE(P1."ShipDate"),
-         'DD-MM-YYYY') AS "ShipDate",
+          IFNULL(P1."U_QtyFail",0) AS "RejectedQty",
+          IFNULL(P1."U_QtyPass",P1."Quantity") AS "PassedQty",
+          TO_VARCHAR(TO_DATE(P1."ShipDate"),'DD-MM-YYYY') AS "ShipDate",
           P1."ItemCode",
-         P1."Dscription" AS "Item Dsc",
+          P1."Dscription" AS "Item Dsc",
           P1."LineNum" AS "LineNum",
           P."DocEntry" AS "LineDOCENTRY",
           P1."BaseRef" AS "LineBASEREF",
@@ -158,29 +147,29 @@ export class GrpoService {
           P1."BaseLine" AS "LineBASELINE",
           P1."Price" AS "PRICE",
           P1."Currency"AS "Curr",
-          P1."OpenQty" AS "LINEOPENQTY" 
-       FROM "PDN1" P1 
-       INNER JOIN "OPDN" P on P1."DocEntry" = P."DocEntry" 
-       INNER JOIN "OPOR" PR ON TO_VARCHAR(PR."DocNum") = TO_VARCHAR(P1."BaseRef") 
-       LEFT JOIN "@OIGP" GP ON TO_VARCHAR(P."U_GPN") = TO_VARCHAR(GP."DocNum") 
-       LEFT JOIN "OBPL" BR ON P."BPLId" = BR."BPLId" 
-       LEFT JOIN "SRM_GRPO1" SG1 ON P1."DocEntry" = SG1."LINEDOCENTRY" AND P1."ItemCode" = SG1."ITEMCODE"
-       LEFT JOIN NNM1 S ON S."Series" = P."Series"  
-       WHERE P."DocDate" >= '2023-01-01' 
-       AND P."U_GPN" IS NOT NULL 
-       AND P."CardCode" = '${me.CODE}' 
-       AND P1."ItemCode" NOT IN ( SELECT
-          "ItemCode" 
-         FROM "PCH1" AP1 
-         INNER JOIN "OPCH" AP ON AP."DocEntry" = AP1."DocEntry" 
-         WHERE TO_VARCHAR(AP1."BaseRef") = TO_VARCHAR(P."DocNum") 
-         AND AP."DocStatus" <> 'C' ) 
-       AND P1."ItemCode" NOT IN ( SELECT
-          "ItemCode" 
-         FROM "SRM_OGRPO" 
-         WHERE "VENDORCODE" = '${me.CODE}' 
-         AND "BILLNO" = GP."U_DANo" )
-         AND SG1."LINEDOCENTRY" IS NULL
+          P1."OpenQty" AS "LINEOPENQTY" ,
+          --a."BillQty",
+          (P1."OpenQty" -IFNULL(a."BillQty",0))"OpenQty"
+          FROM "PDN1" P1 
+          INNER JOIN "OPDN" P on P1."DocEntry" = P."DocEntry"  
+          LEFT JOIN "@OIGP" GP ON TO_VARCHAR(P."U_GPN") = TO_VARCHAR(GP."DocNum") 
+          LEFT JOIN
+          (
+          SELECT d."GRPONO", d."ITEMCODE",SUM(d."BILLQTY")"BillQty",d."LINENUM"
+          FROM "SRM_OGRPO" m 
+          INNER JOIN "SRM_GRPO1" d ON m."DOCENTRY" = d."DOCENTRY" 
+          WHERE "VENDORCODE" ='${me.CODE}' AND m."STATUS" = 'ready'  --AND "BILLNO" = GP."U_DANo"
+          GROUP BY  d."GRPONO", d."ITEMCODE",d."LINENUM"
+          )a ON a."GRPONO" = P."DocNum" AND a."ITEMCODE" = P1."ItemCode" AND a."LINENUM" = P1."LineNum" 
+          LEFT JOIN NNM1 S ON S."Series" = P."Series"  
+          WHERE P."DocDate" >= '2023-01-01' AND P."U_GPN" IS NOT NULL AND P."CardCode" ='${me.CODE}' --'$VENDOR' 
+          AND P1."ItemCode" NOT IN 
+          (
+          SELECT
+          AP1."ItemCode" 
+          FROM "PCH1" AP1 
+          INNER JOIN "OPCH" AP ON AP."DocEntry" = AP1."DocEntry" 
+          WHERE TO_VARCHAR(AP1."BaseRef") = TO_VARCHAR(P."DocNum") AND AP1."ItemCode" = p1."ItemCode" AND P1."LineNum" = AP1."BaseLine"  AND AP."DocStatus" <> 'C')        
          ;`,
         );
         //       const result = await createStatementAndExecute(
@@ -291,15 +280,18 @@ export class GrpoService {
           "ID",
           "PONO" AS "PO#",
          "GRPONO" AS "GRPO#",
-         "PODATE" AS "PO Date",
-         "ITEMCODE" AS "Item Code",
-         "ITEMDSC" AS "Item Description",
-         "SHIPDATE" AS "Ship Date",
+         T1."BPLName" AS "BranchName",
+         T1."BPLId" AS "BranchID",
+         "PODATE" AS "PODate",
+         "ITEMCODE" AS "ItemCode",
+         "ITEMDSC" AS "ItemDescription",
+         "SHIPDATE" AS "ShipDate",
          "PRICE" AS "Price",
-         "BILLQTY" AS "Bill Qty" ,
+         "BILLQTY" AS "BillQty" ,
          "LINENUM",
          --CASE WHEN T2."OpenQty" IS NULL THEN IFNULL(T2."OpenQty",0) ELSE T2."OpenQty" - T0."BILLQTY" END AS "AvailQty",
-         T2."OpenQty" AS "AvailQty"
+         --T2."OpenQty" AS "AvailQty"
+         (T2."OpenQty" -IFNULL(T0."BILLQTY",0))"AvailQty"
        FROM "SRM_GRPO1" T0
        LEFT JOIN "OPDN" T1 ON T1."DocNum"= T0."GRPONO" 
        LEFT JOIN "PDN1"  T2 ON T1."DocEntry" = T2."DocEntry" AND T0."LINENUM" = T2."LineNum" AND T0."ITEMCODE" = T2."ItemCode"
@@ -1032,10 +1024,10 @@ export class GrpoService {
                         const result: SAPDRAFTSUCCESS =
                           await this.generateMyInvoice(
                             sapPayload,
-                            user,
+                            // user,
                             files,
-                            GrpoItems,
-                            BPLId,
+                            // GrpoItems,
+                            // BPLId,
                           );
                         if (result) {
                           const { DocEntry: SuccessDocEntry } = result;
@@ -1187,10 +1179,10 @@ export class GrpoService {
         BaseEntry: string;
       }[];
     },
-    user: UserDashboard,
+    // user: UserDashboard,
     files: Express.Multer.File[],
-    GrpoItems: Array<DataProps>,
-    BPLId: number | string,
+    // GrpoItems: Array<DataProps>,
+    // BPLId: number | string,
   ) {
     try {
       const cookies = await this.sapSercice.loginSAPUser({
@@ -1418,6 +1410,352 @@ export class GrpoService {
       return { data: [], message: 'No GRPOs found' };
     }
   }
+  async updateGrpo(
+    user: UserDashboard,
+    files: Express.Multer.File[],
+    body: any,
+  ) {
+    // console.log(files, ' files');
+    // console.log(body, ' body');
+    let {
+      header,
+      // : headerString,
+      items,
+      // : ItemsString,
+      attachments,
+      // : attachmentString,
+    } = body;
+    // const header = JSON.parse(headerString);
+    // const items = JSON.parse(ItemsString);
+    // const attachments = JSON.parse(attachmentString);
+    console.log(header, items, attachments);
+    header = JSON.parse(header);
+    items = JSON.parse(items);
+    attachments = Array.isArray(attachments)
+      ? attachments
+      : JSON.parse(attachments);
+    if (files && files?.length > 0) {
+      const uploadFiles = await this.uploadFiles(files);
+      if (uploadFiles) {
+        await global.connection.beginTransaction();
+        return executeAndReturnResult(
+          `UPDATE "SRM_OGRPO" SET "BILLNO"='${
+            header.BILLNO
+          }',"BILLDATE"='${moment(header.BILLDATE, 'DD-MM-YYYY').format(
+            'YYYY-MM-DD',
+          )}' WHERE "DOCENTRY"='${header.DRAFTNO}'`,
+          true,
+        )
+          .then(async () => {
+            return await new Promise(async (res, rej) => {
+              let count = 0;
+              console.log(items);
+              await items.forEach(async (item) => {
+                if (item.toDelete && item.ID !== null) {
+                  await executeAndReturnResult(
+                    `DELETE FROM "SRM_GRPO1" WHERE "ID"='${item.ID}'`,
+                    true,
+                  )
+                    .then(() => {
+                      count++;
+                      if (count == items.length) {
+                        res(true);
+                      }
+                    })
+                    .catch((e) => {
+                      rej(e);
+                    });
+                } else if (item.toChange && item.ID !== null) {
+                  await executeAndReturnResult(
+                    `UPDATE "SRM_GRPO1" SET "BILLQTY"='${item.BillQty}' AND "PRICE" = '${item.Price}' WHERE "ID"='${item.ID}'`,
+                    true,
+                  )
+                    .then(() => {
+                      count++;
+                      if (count == items.length) {
+                        res(true);
+                      }
+                    })
+                    .catch((e) => {
+                      rej(e);
+                    });
+                } else if (item.toAdd && item.ID === null) {
+                  await executeAndReturnResult(
+                    `INSERT INTO "SRM_GRPO1" ("DOCENTRY","LINENUM","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","BILLQTY","PRICE") VALUES ('${
+                      header.DRAFTNO
+                    }','${item.LineNum}','${item['PO#']}','${
+                      item['GRPO#']
+                    }','${moment(item.DocDate).format('YYYY-MM-DD')}','${
+                      item.ItemCode
+                    }','${item['Item Dsc']}','${moment(item.ShipDate).format(
+                      'YYYY-MM-DD',
+                    )}','${item.BillQty}','${item.PRICE}')`,
+                    true,
+                  )
+                    .then(() => {
+                      count++;
+                      if (count == items.length) {
+                        res(true);
+                      }
+                    })
+                    .catch((e) => {
+                      rej(e);
+                    });
+                } else if (!item.toAdd && !item.toChange && !item.toDelete) {
+                  count++;
+                  if (count == items.length) {
+                    res(true);
+                  }
+                }
+              });
+            })
+              .then(async (res) => {
+                if (res) {
+                  await new Promise(async (resolve, reject) => {
+                    let count = 0;
+
+                    if (attachments && Array.isArray(attachments)) {
+                      await attachments.forEach(async (file, index) => {
+                        const myFile = JSON.parse(file);
+                        if (
+                          myFile.toDelete &&
+                          !String(myFile.ID).includes('null')
+                        ) {
+                          return await executeAndReturnResult(
+                            `DELETE FROM "SRM_GRPO2" WHERE "ID"='${myFile.ID}'`,
+                            true,
+                          )
+                            .catch((e) => {
+                              reject(e);
+                            })
+                            .then(() => {
+                              count++;
+                              if (count == attachments.length) {
+                                resolve(true);
+                              }
+                            });
+                        } else {
+                          count++;
+                          if (count == attachments.length) {
+                            resolve(true);
+                          }
+                        }
+                      });
+                    } else {
+                      if (
+                        attachments.toDelete &&
+                        !String(attachments.ID).includes('null')
+                      ) {
+                        return await executeAndReturnResult(
+                          `DELETE FROM "SRM_GRPO2" WHERE "ID"='${attachments.ID}'`,
+                          true,
+                        )
+                          .catch((e) => {
+                            reject(e);
+                          })
+                          .then(() => {
+                            resolve(true);
+                          });
+                      } else {
+                        resolve(true);
+                      }
+                    }
+                  })
+                    .then(async () => {
+                      return await new Promise(async (resolve, reject) => {
+                        let count = 0;
+                        await files.map(async (file, index) => {
+                          await executeAndReturnResult(
+                            `INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES ('${
+                              header.DRAFTNO
+                            }', '${file.originalname}', '${
+                              true
+                                ? process.env.SHARE_FOLDER_PATH
+                                : '\\\\192.168.5.191\\Backup\\ZAINWEBSITETESTING\\SRM\\attachments\\'
+                            }');`,
+                            true,
+                          )
+                            .then(() => {
+                              count++;
+                              if (count == files.length) {
+                                resolve(true);
+                              }
+                            })
+                            .catch((e) => {
+                              reject(e);
+                            });
+                        });
+                      }).then(async () => {
+                        await global.connection.commit();
+                        return { data: null, message: 'GRPO Updated' };
+                      });
+                    })
+                    .catch((e) => {
+                      throw new Error(e.message);
+                    });
+                } else {
+                  throw new Error('Error updating items');
+                }
+              })
+              .catch((e) => {
+                console.log(e);
+                throw new HttpException(e.message, 500);
+              });
+          })
+          .catch((e) => {
+            console.log(e);
+            throw new HttpException(e.message, 500);
+          });
+      } else {
+        throw new HttpException('Files not uploaded', 500);
+      }
+    } else {
+      await global.connection.beginTransaction();
+      return executeAndReturnResult(
+        `UPDATE "SRM_OGRPO" SET "BILLNO"='${
+          header.BILLNO
+        }',"BILLDATE"='${moment(header.BILLDATE, 'DD-MM-YYYY').format(
+          'YYYY-MM-DD',
+        )}' WHERE "DOCENTRY"='${header.DRAFTNO}'`,
+        true,
+      )
+        .then(async () => {
+          return await new Promise(async (res, rej) => {
+            let count = 0;
+            await items.forEach(async (item) => {
+              if (item.toDelete && item.ID !== null) {
+                await executeAndReturnResult(
+                  `DELETE FROM "SRM_GRPO1" WHERE "ID"='${item.ID}'`,
+                  true,
+                )
+                  .then(() => {
+                    count++;
+                    if (count == items.length) {
+                      res(true);
+                    }
+                  })
+                  .catch((e) => {
+                    rej(e);
+                  });
+              } else if (item.toChange && item.ID !== null) {
+                await executeAndReturnResult(
+                  `UPDATE "SRM_GRPO1" SET "BILLQTY"='${item.BillQty}' AND "PRICE" = '${item.Price}' WHERE "ID"='${item.ID}'`,
+                  true,
+                )
+                  .then(() => {
+                    count++;
+                    if (count == items.length) {
+                      res(true);
+                    }
+                  })
+                  .catch((e) => {
+                    rej(e);
+                  });
+              } else if (item.toAdd && item.ID === null) {
+                await executeAndReturnResult(
+                  `INSERT INTO "SRM_GRPO1" ("DOCENTRY","LINENUM","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","BILLQTY","PRICE") VALUES ('${
+                    header.DRAFTNO
+                  }','${item.LineNum}','${item['PO#']}','${
+                    item['GRPO#']
+                  }','${moment(item.DocDate).format('YYYY-MM-DD')}','${
+                    item.ItemCode
+                  }','${item['Item Dsc']}','${moment(item.ShipDate).format(
+                    'YYYY-MM-DD',
+                  )}','${item.BillQty}','${item.PRICE}')`,
+                  true,
+                )
+                  .then(() => {
+                    count++;
+                    if (count == items.length) {
+                      res(true);
+                    }
+                  })
+                  .catch((e) => {
+                    rej(e);
+                  });
+              } else if (!item.toAdd && !item.toChange && !item.toDelete) {
+                count++;
+                if (count == items.length) {
+                  res(true);
+                }
+              }
+            });
+          })
+            .then(async (res) => {
+              if (res) {
+                return await new Promise(async (resolve, reject) => {
+                  if (attachments && Array.isArray(attachments)) {
+                    let count = 0;
+                    // console.log(attachments, 'Attacments');
+                    await attachments.forEach(async (file, index) => {
+                      const myFile = JSON.parse(file);
+                      // console.log(myFile, ' MY FILE');
+                      if (
+                        myFile.toDelete &&
+                        !String(myFile.ID).includes('null')
+                      ) {
+                        return await executeAndReturnResult(
+                          `DELETE FROM "SRM_GRPO2" WHERE "ID"='${myFile.ID}'`,
+                          true,
+                        )
+                          .catch((e) => {
+                            reject(e);
+                          })
+                          .then(() => {
+                            count++;
+                            if (count == attachments.length) {
+                              resolve(true);
+                            }
+                          });
+                      } else {
+                        count++;
+                        if (count == attachments.length) {
+                          resolve(true);
+                        }
+                      }
+                    });
+                  } else {
+                    if (
+                      attachments.toDelete &&
+                      !String(attachments.ID).includes('null')
+                    ) {
+                      return await executeAndReturnResult(
+                        `DELETE FROM "SRM_GRPO2" WHERE "ID"='${attachments.ID}'`,
+                        true,
+                      )
+                        .catch((e) => {
+                          reject(e);
+                        })
+                        .then(() => {
+                          resolve(true);
+                        });
+                    } else {
+                      resolve(true);
+                    }
+                  }
+                })
+                  .then(async () => {
+                    await global.connection.commit();
+                    return { data: null, message: 'GRPO Updated' };
+                  })
+                  .catch((e) => {
+                    throw new Error(e.message);
+                  });
+              } else {
+                throw new Error('Error updating items');
+              }
+            })
+            .catch((e) => {
+              console.log(e);
+              throw new HttpException(e.message, 500);
+            });
+        })
+        .catch((e) => {
+          console.log(e);
+          throw new HttpException(e.message, 500);
+        });
+    }
+  }
   // async saveGrpoAsDraft(
   //   user: UserDashboard,
   //   files: Express.Multer.File[],
@@ -1551,4 +1889,117 @@ export class GrpoService {
   //     throw new HttpException(e.message, 500);
   //   }
   // }
+  async updateGrpoAndGenerateInvoice(user, files, body) {
+    try {
+      const saveGrpoAsDraft = await this.updateGrpo(user, files, body);
+      const header = JSON.parse(body.header);
+      if (saveGrpoAsDraft) {
+        await global.connection.beginTransaction();
+        const updateStatus = await executeAndReturnResult(
+          `
+          UPDATE "SRM_OGRPO" SET "STATUS" = 'completed' WHERE "DOCENTRY" = '${header.DRAFTNO}';
+        `,
+          true,
+        );
+        if (updateStatus.count !== 0) {
+          const actualDetails = await executeAndReturnResult(`
+          SELECT * FROM "SRM_OGRPO" WHERE "DOCENTRY" = '${header.DRAFTNO}';
+        `);
+          if (actualDetails.count !== 0) {
+            const itemData = await executeAndReturnResult(`
+            SELECT *,T1."DocEntry" AS "GRPOBASE" FROM "SRM_GRPO1" T0
+            LEFT JOIN "OPDN" T1 ON T0."GRPONO" = T1."DocNum"
+            WHERE "DOCENTRY" = '${header.DRAFTNO}';
+            `);
+            if (itemData.count !== 0) {
+              const attachmentsDetails = await executeAndReturnResult(`
+              SELECT * FROM "SRM_GRPO2" WHERE "DOCENTRY" = '${header.DRAFTNO}';
+              `);
+              if (attachmentsDetails.count !== 0) {
+                const sapPayload = {
+                  CardCode: actualDetails[0].VENDORCODE,
+                  DocObjectCode: 'oPurchaseInvoices',
+                  BPL_IDAssignedToInvoice: actualDetails[0].BPLID,
+                  NumAtCard: actualDetails[0].BILLNO,
+                  DocumentLines: itemData.map((item, index) => {
+                    return {
+                      LineNum: index,
+                      ItemCode: item.ITEMCODE,
+                      Quantity: item.BILLQTY,
+                      BaseType: 20,
+                      BaseEntry: item.GRPOBASE,
+                      BaseLine: item.LINENUM,
+                    };
+                  }),
+                };
+                console.log(sapPayload, ' SAP PAYLOAD');
+                const sapResponse = await this.generateMyInvoice(
+                  sapPayload,
+                  attachmentsDetails.map((file) => ({
+                    originalname: file.ATTACHMENTNAME,
+                  })) as any,
+                );
+                if (sapResponse) {
+                  return { message: 'GRPO And Invoice Created', data: null };
+                } else {
+                  throw new HttpException('Error Creating Invoice', 500);
+                }
+              } else {
+                throw new HttpException('No Attachments Found', 404);
+              }
+            } else {
+              throw new HttpException('No Items Found', 404);
+            }
+          } else {
+            throw new HttpException('No GRPO Found', 404);
+          }
+        }
+      } else {
+        throw new HttpException('Error Updating GRPO', 500);
+      }
+    } catch (e: any) {
+      throw new HttpException(e.message, 500);
+    }
+  }
+  async deleteGrpo(id: string) {
+    try {
+      // console.log('INSIDE DELETE', id);
+      await global.connection.beginTransaction();
+
+      const deleteItems = await executeAndReturnResult(
+        `
+        DELETE FROM "SRM_GRPO1" WHERE "DOCENTRY" = '${id}';
+        `,
+        true,
+      );
+      if (deleteItems.count != 0) {
+        const deleteAttachments = await executeAndReturnResult(
+          `
+          DELETE FROM "SRM_GRPO2" WHERE "DOCENTRY" = '${id}';
+          `,
+          true,
+        );
+        if (deleteAttachments.count != 0) {
+          const result = await executeAndReturnResult(
+            `
+            DELETE FROM "SRM_OGRPO" WHERE "DOCENTRY" = '${id}';
+            `,
+            true,
+          );
+          if (result.count !== 0) {
+            await global.connection.commit();
+            return { data: null, message: 'GRPO Deleted' };
+          } else {
+            throw new HttpException('Error Deleting GRPO', 500);
+          }
+        } else {
+          throw new HttpException('Error Deleting Attachments', 500);
+        }
+      } else {
+        throw new HttpException('Error Deleting Items', 500);
+      }
+    } catch (e) {
+      throw new HttpException(e.message, 500);
+    }
+  }
 }

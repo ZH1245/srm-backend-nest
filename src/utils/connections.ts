@@ -54,7 +54,7 @@ export async function createConnection() {
        * The error message.
        */
       console.log('Connection Failed with Error: ' + err + '\n');
-      return err;
+      throw err;
     });
   global.connection = connection;
 }

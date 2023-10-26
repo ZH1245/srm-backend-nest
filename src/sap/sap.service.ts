@@ -15,7 +15,7 @@ export class SapService {
           Password: user.password,
           UserName: user.code,
           // CompanyDB: process.env.database,
-          CompanyDB: 'TESTDFL25102023',
+          CompanyDB: 'TESTDFL26102023',
           // CompanyDB: process.env.hana_schema,
           // CompanyDB: "APPHIERARCHY19122022",
           // Password: "1234",
@@ -83,7 +83,7 @@ export class SapService {
         // throw Error(e?.response?.data.message || e?.message);
       });
   }
-  async addAttachments(files: Express.Multer.File[]) {
+  async addAttachments(files: Express.Multer.File[] | { originalname: any }[]) {
     console.log(files, 'Files');
     const sapFileNames = files.map((file) => {
       const getExtension = (str) => str.slice(str.lastIndexOf('.'));
