@@ -247,8 +247,8 @@ export class GrpoController {
     const user = req.user;
     const result: any = await this.grpoService.updateGrpo(user, files, body);
     return res.json({
-      data: result.data ?? null,
-      message: result.message ?? 'Updated Successfully',
+      data: result?.data ?? null,
+      message: result?.message ?? 'Updated Successfully',
       // data: (result?.data ?? null) || null,
       // message: (result?.message ?? 'DONE') || 'Done',
     });

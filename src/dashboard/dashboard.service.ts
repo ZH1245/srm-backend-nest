@@ -54,7 +54,7 @@ export class DashboardService {
           LEFT JOIN "SRM_GRPO1" SG1 ON P1."DocEntry" = SG1."LINEDOCENTRY" AND P1."ItemCode" = SG1."ITEMCODE"
           WHERE P."DocDate" >= '2023-01-01' 
           AND P."U_GPN" IS NOT NULL 
-          AND P."CardCode" = '${authUser.CODE}' 
+          AND P."CardCode" = TRIM('${authUser.CODE}')
           AND P1."ItemCode" NOT IN ( SELECT
             "ItemCode" 
             FROM "PCH1" AP1 
@@ -64,7 +64,7 @@ export class DashboardService {
           AND P1."ItemCode" NOT IN ( SELECT
             "ItemCode" 
             FROM "SRM_OGRPO" 
-            WHERE "VENDORCODE" = '${authUser.CODE}' 
+            WHERE "VENDORCODE" = TRIM('${authUser.CODE}')
             AND "BILLNO" = GP."U_DANo" )
             AND SG1."LINEDOCENTRY" IS NULL  
         );`,
@@ -76,7 +76,7 @@ export class DashboardService {
         counts.pending = 0;
       }
       const readyPO: Result<{ COUNT: string }> = await executeAndReturnResult(
-        `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" ='${authUser.CODE}' AND "STATUS" = 'ready';`,
+        `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" = TRIM('${authUser.CODE}') AND "STATUS" = 'ready';`,
       );
 
       // const readyPO: Result<{ COUNT: string }> = await createStatementAndExecute(
@@ -89,7 +89,7 @@ export class DashboardService {
         counts.ready = 0;
       }
       const completed: Result<{ COUNT: string }> = await executeAndReturnResult(
-        `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" ='${authUser.CODE}' AND "STATUS" = 'completed';`,
+        `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "VENDORCODE" = TRIM('${authUser.CODE}') AND "STATUS" = 'completed';`,
       );
 
       // const completed: Result<{ COUNT: string }> =

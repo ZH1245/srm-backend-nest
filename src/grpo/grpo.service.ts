@@ -149,7 +149,7 @@ export class GrpoService {
           P1."Currency"AS "Curr",
           P1."OpenQty" AS "LINEOPENQTY" ,
           --a."BillQty",
-          (P1."OpenQty" -IFNULL(a."BillQty",0))"OpenQty"
+          (P1."OpenQty" -IFNULL(a."BillQty",0)) "OpenQty"
           FROM "PDN1" P1 
           INNER JOIN "OPDN" P on P1."DocEntry" = P."DocEntry"  
           LEFT JOIN "@OIGP" GP ON TO_VARCHAR(P."U_GPN") = TO_VARCHAR(GP."DocNum") 
@@ -158,18 +158,19 @@ export class GrpoService {
           SELECT d."GRPONO", d."ITEMCODE",SUM(d."BILLQTY")"BillQty",d."LINENUM"
           FROM "SRM_OGRPO" m 
           INNER JOIN "SRM_GRPO1" d ON m."DOCENTRY" = d."DOCENTRY" 
-          WHERE "VENDORCODE" ='${me.CODE}' AND m."STATUS" = 'ready'  --AND "BILLNO" = GP."U_DANo"
+          WHERE "VENDORCODE" = TRIM('${me.CODE}') AND m."STATUS" = 'ready'  --AND "BILLNO" = GP."U_DANo"
           GROUP BY  d."GRPONO", d."ITEMCODE",d."LINENUM"
           )a ON a."GRPONO" = P."DocNum" AND a."ITEMCODE" = P1."ItemCode" AND a."LINENUM" = P1."LineNum" 
           LEFT JOIN NNM1 S ON S."Series" = P."Series"  
-          WHERE P."DocDate" >= '2023-01-01' AND P."U_GPN" IS NOT NULL AND P."CardCode" ='${me.CODE}' --'$VENDOR' 
+          WHERE P."DocDate" >= '2023-01-01' AND P."U_GPN" IS NOT NULL AND P."CardCode" = TRIM('${me.CODE}') --'$VENDOR' 
           AND P1."ItemCode" NOT IN 
           (
           SELECT
           AP1."ItemCode" 
           FROM "PCH1" AP1 
           INNER JOIN "OPCH" AP ON AP."DocEntry" = AP1."DocEntry" 
-          WHERE TO_VARCHAR(AP1."BaseRef") = TO_VARCHAR(P."DocNum") AND AP1."ItemCode" = p1."ItemCode" AND P1."LineNum" = AP1."BaseLine"  AND AP."DocStatus" <> 'C')        
+          WHERE TO_VARCHAR(AP1."BaseRef") = TO_VARCHAR(P."DocNum") AND AP1."ItemCode" = p1."ItemCode" AND P1."LineNum" = AP1."BaseLine"  AND AP."DocStatus" <> 'C')       
+          AND (P1."OpenQty" -IFNULL(a."BillQty",0)) > 0 
          ;`,
         );
         //       const result = await createStatementAndExecute(
@@ -282,10 +283,10 @@ export class GrpoService {
          "GRPONO" AS "GRPO#",
          T1."BPLName" AS "BranchName",
          T1."BPLId" AS "BranchID",
-         "PODATE" AS "PODate",
+         TO_VARCHAR(TO_DATE("PODATE"),'DD-MM-YYYY') AS "PODate",
          "ITEMCODE" AS "ItemCode",
          "ITEMDSC" AS "ItemDescription",
-         "SHIPDATE" AS "ShipDate",
+         TO_VARCHAR( TO_DATE("SHIPDATE"),'DD-MM-YYYY') AS "ShipDate",
          "PRICE" AS "Price",
          "BILLQTY" AS "BillQty" ,
          "LINENUM",
@@ -918,7 +919,12 @@ export class GrpoService {
           const DocEntry = JSON.parse(CurrentDocEntry[0].DOCENTRY) + 1;
           await global.connection.beginTransaction();
           const result = await executeAndReturnResult(
-            `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS,BPLID,SERIES) VALUES ('${DocEntry}', '${BILLNO}', '${BILLDATE}', '${user.CODE}', '${body.STATUS}','${body.BPLId}','${SERIES}');`,
+            `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS,BPLID,SERIES) VALUES (TRIM('${DocEntry}'), TRIM('${BILLNO}'), TRIM('${moment(
+              BILLDATE,
+              'DD-MM-YYYY',
+            ).format('YYYY-MM-DD')}'), TRIM('${user.CODE}'), TRIM('${
+              body.STATUS
+            }'),TRIM('${body.BPLId}'),TRIM('${SERIES}'));`,
             true,
           )
             // const result = await createStatementAndExecute(
@@ -935,7 +941,21 @@ export class GrpoService {
                   // )
                   // console.log(item, ' ITEMS');
                   await executeAndReturnResult(
-                    `INSERT INTO SRM_GRPO1 (DOCENTRY,LINEDOCENTRY,LINENUM,PONO,GRPONO,PODATE,ITEMCODE,ITEMDSC,SHIPDATE,BILLQTY<PRICE) VALUES ('${DocEntry}', '${item.LINEDOCENTRY}', '${item.LineNum}', '${item['PONO']}', '${item['GRPONO']}', '${item.PODATE}', '${item.ITEMCODE}', '${item['ITEMDSC']}', '${item.SHIPDATE}', '${item.BILLQTY}','${item.PRICE}');
+                    `INSERT INTO SRM_GRPO1 (DOCENTRY,LINEDOCENTRY,LINENUM,PONO,GRPONO,PODATE,ITEMCODE,ITEMDSC,SHIPDATE,BILLQTY,PRICE) VALUES (TRIM('${DocEntry}'), TRIM('${
+                      item.LINEDOCENTRY
+                    }'), TRIM('${item.LineNum}'), TRIM('${
+                      item['PONO']
+                    }'), TRIM('${item['GRPONO']}'), TRIM('${moment(
+                      item.PODATE,
+                      'DD-MM-YYYY',
+                    ).format('YYYY-MM-DD')}'), TRIM('${
+                      item.ITEMCODE
+                    }'), TRIM('${item['ITEMDSC']}'), TRIM('${moment(
+                      item.SHIPDATE,
+                      'DD-MM-YYYY',
+                    ).format('YYYY-MM-DD')}'), TRIM('${item.BILLQTY}'),TRIM('${
+                      item.PRICE
+                    }'));
                   `,
                     true,
                   )
@@ -971,7 +991,7 @@ export class GrpoService {
                       let count = 0;
                       await files.forEach(async (file, index) => {
                         const fileInsert = await executeAndReturnResult(
-                          `INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES ('${DocEntry}', '${
+                          `INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES ( TRIM('${DocEntry}'), '${
                             file.originalname
                           }', '${
                             true
@@ -1034,7 +1054,7 @@ export class GrpoService {
                           // Update SRM_GRPO DRAFTID
                           await global.connection.beginTransaction();
                           await executeAndReturnResult(
-                            `UPDATE SRM_OGRPO SET DRAFTID='${SuccessDocEntry}' WHERE DOCENTRY='${DocEntry}';`,
+                            `UPDATE SRM_OGRPO SET DRAFTID= TRIM('${SuccessDocEntry}') WHERE DOCENTRY= TRIM('${DocEntry}');`,
                             true,
                           ).then(async () => {
                             await global.connection.commit();
@@ -1085,7 +1105,12 @@ export class GrpoService {
           await global.connection.beginTransaction();
 
           const result = await executeAndReturnResult(
-            `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS,BPLID,SERIES) VALUES ('${DocEntry}', '${BILLNO}', '${BILLDATE}', '${user.CODE}', '${body.STATUS}','${body.BPLId}','${SERIES}');`,
+            `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS,BPLID,SERIES) VALUES ( TRIM('${DocEntry}'), TRIM('${BILLNO}'), TRIM('${moment(
+              BILLDATE,
+              'DD-MM-YYYY',
+            ).format('YYYY-MM-DD')}'), TRIM('${user.CODE}'), TRIM('${
+              body.STATUS
+            }'),TRIM('${body.BPLId}'),TRIM('${SERIES}'));`,
             true,
           ).then(async () => {
             await new Promise(async (res, rej) => {
@@ -1093,7 +1118,18 @@ export class GrpoService {
               await GrpoItems.forEach(async (item) => {
                 console.log(ITEMS);
                 await executeAndReturnResult(
-                  `INSERT INTO SRM_GRPO1 (DOCENTRY,LINEDOCENTRY,LINENUM,PONO,GRPONO,PODATE,ITEMCODE,ITEMDSC,SHIPDATE,BILLQTY,PRICE) VALUES ('${DocEntry}', '${item.LINEDOCENTRY}', '${item.LineNum}', '${item['PONO']}', '${item['GRPONO']}', '${item.PODATE}', '${item.ITEMCODE}', '${item['ITEMDSC']}', '${item.SHIPDATE}', '${item.BILLQTY}','${item.PRICE}');
+                  `INSERT INTO SRM_GRPO1 (DOCENTRY,LINEDOCENTRY,LINENUM,PONO,GRPONO,PODATE,ITEMCODE,ITEMDSC,SHIPDATE,BILLQTY,PRICE) VALUES (TRIM('${DocEntry}'), TRIM('${
+                    item.LINEDOCENTRY
+                  }'), TRIM('${item.LineNum}'), TRIM('${
+                    item['PONO']
+                  }'), TRIM('${item['GRPONO']}'), TRIM('${moment(
+                    item.PODATE,
+                    'DD-MM-YYYY',
+                  ).format('YYYY-MM-DD')}'), TRIM('${item.ITEMCODE}'), TRIM('${
+                    item['ITEMDSC']
+                  }'), TRIM('${moment(item.SHIPDATE, 'DD-MM-YYYY').format(
+                    'YYYY-MM-DD',
+                  )}'), TRIM('${item.BILLQTY}'),TRIM('${item.PRICE}'));
                   `,
                   true,
                 )
@@ -1114,7 +1150,7 @@ export class GrpoService {
                     let count = 0;
                     await files.forEach(async (file, index) => {
                       const fileInsert = await executeAndReturnResult(
-                        `INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES ('${DocEntry}', '${
+                        `INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES ( TRIM('${DocEntry}'), '${
                           file.originalname
                         }', '${
                           true
@@ -1267,6 +1303,12 @@ export class GrpoService {
               if (err.code === 'EEXIST') {
                 reject('File Already Exists');
               } else reject(err.message);
+              if (err.code === 'EPERM') {
+                // reject('No Access to Share Folder');
+                reject(
+                  'File Already Exists. Please Re-upload the file with a different name',
+                );
+              }
             });
         });
       })
@@ -1297,7 +1339,7 @@ export class GrpoService {
     try {
       const result: Result<{ LINK: string; ATTACHMENTNAME: string }> =
         await executeAndReturnResult(
-          `SELECT "LINK","ATTACHMENTNAME" FROM "SRM_GRPO2" WHERE "ID" = '${id}';`,
+          `SELECT "LINK","ATTACHMENTNAME" FROM "SRM_GRPO2" WHERE "ID" = TRIM('${id}');`,
         );
       // const result: Result<{ LINK: string; ATTACHMENTNAME: string }> =
       //   await createStatementAndExecute(
@@ -1370,8 +1412,7 @@ export class GrpoService {
     const header = await executeAndReturnResult(
       `SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE",V."CardName" AS "VENDOR", CASE WHEN "STATUS"='ready' THEN 'Draft' WHEN "STATUS" = 'completed' THEN 'Finalized' END AS "STATUS" ,TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 
       INNER JOIN "OCRD" V ON T0."VENDORCODE" = V."CardCode"
-      WHERE T0."DOCENTRY" = '${id}'
-      ;`,
+      WHERE T0."DOCENTRY" = TRIM('${id}');`,
     );
     // const header = await createStatementAndExecute(
     //   ` SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 WHERE T0."DOCENTRY" = ?`,
@@ -1386,7 +1427,7 @@ export class GrpoService {
         "BILLQTY" 
         FROM "SRM_GRPO1" T0 
         LEFT JOIN "OPDN" PR ON T0."GRPONO" = PR."DocNum"
-        LEFT JOIN "PDN1" PR1 on T0."ITEMCODE" = PR1."ItemCode" AND PR1."DocEntry" = PR."DocEntry" AND T0."LINENUM" = PR1."LineNum" WHERE T0."DOCENTRY" = '${id}';`,
+        LEFT JOIN "PDN1" PR1 on T0."ITEMCODE" = PR1."ItemCode" AND PR1."DocEntry" = PR."DocEntry" AND T0."LINENUM" = PR1."LineNum" WHERE T0."DOCENTRY" = TRIM('${id}');`,
       );
       // const items = await createStatementAndExecute(
       //   ` SELECT "DOCENTRY","LINEID","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","RECEIVEDQTY","BILLQTY" FROM "SRM_GRPO1" T0 WHERE T0."DOCENTRY" = ?`,
@@ -1396,7 +1437,7 @@ export class GrpoService {
         result.items = items;
       }
       const attachments = await executeAndReturnResult(
-        `SELECT "ID","DOCENTRY","ATTACHMENTNAME","LINK" FROM "SRM_GRPO2" T0 WHERE T0."DOCENTRY" = '${id}';`,
+        `SELECT "ID","DOCENTRY","ATTACHMENTNAME","LINK" FROM "SRM_GRPO2" T0 WHERE T0."DOCENTRY" = TRIM('${id}');`,
       );
       // const attachments = await createStatementAndExecute(
       //   ` SELECT "ID","DOCENTRY","ATTACHMENTNAME","LINK" FROM "SRM_GRPO2" T0 WHERE T0."DOCENTRY" = ?`,
@@ -1439,11 +1480,11 @@ export class GrpoService {
       if (uploadFiles) {
         await global.connection.beginTransaction();
         return executeAndReturnResult(
-          `UPDATE "SRM_OGRPO" SET "BILLNO"='${
+          `UPDATE "SRM_OGRPO" SET "BILLNO"=TRIM('${
             header.BILLNO
-          }',"BILLDATE"='${moment(header.BILLDATE, 'DD-MM-YYYY').format(
+          }'),"BILLDATE"='${moment(header.BILLDATE, 'DD-MM-YYYY').format(
             'YYYY-MM-DD',
-          )}' WHERE "DOCENTRY"='${header.DRAFTNO}'`,
+          )}' WHERE "DOCENTRY"= TRIM('${header.DRAFTNO}')`,
           true,
         )
           .then(async () => {
@@ -1453,7 +1494,7 @@ export class GrpoService {
               await items.forEach(async (item) => {
                 if (item.toDelete && item.ID !== null) {
                   await executeAndReturnResult(
-                    `DELETE FROM "SRM_GRPO1" WHERE "ID"='${item.ID}'`,
+                    `DELETE FROM "SRM_GRPO1" WHERE "ID"= TRIM('${item.ID}')`,
                     true,
                   )
                     .then(() => {
@@ -1467,7 +1508,7 @@ export class GrpoService {
                     });
                 } else if (item.toChange && item.ID !== null) {
                   await executeAndReturnResult(
-                    `UPDATE "SRM_GRPO1" SET "BILLQTY"='${item.BillQty}' AND "PRICE" = '${item.Price}' WHERE "ID"='${item.ID}'`,
+                    `UPDATE "SRM_GRPO1" SET "BILLQTY"= TRIM('${item.BillQty}') AND "PRICE" = TRIM('${item.Price}') WHERE "ID"= TRIM('${item.ID}')`,
                     true,
                   )
                     .then(() => {
@@ -1481,15 +1522,18 @@ export class GrpoService {
                     });
                 } else if (item.toAdd && item.ID === null) {
                   await executeAndReturnResult(
-                    `INSERT INTO "SRM_GRPO1" ("DOCENTRY","LINENUM","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","BILLQTY","PRICE") VALUES ('${
+                    `INSERT INTO "SRM_GRPO1" ("DOCENTRY","LINENUM","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","BILLQTY","PRICE","LINEDOCENTRY") VALUES (TRIM('${
                       header.DRAFTNO
-                    }','${item.LineNum}','${item['PO#']}','${
+                    }'),TRIM('${item.LineNum}'),TRIM('${item['PO#']}'),TRIM('${
                       item['GRPO#']
-                    }','${moment(item.DocDate).format('YYYY-MM-DD')}','${
+                    }'),'${moment(item.DocDate).format('YYYY-MM-DD')}','${
                       item.ItemCode
-                    }','${item['Item Dsc']}','${moment(item.ShipDate).format(
-                      'YYYY-MM-DD',
-                    )}','${item.BillQty}','${item.PRICE}')`,
+                    }','${item['Item Dsc']}','${moment(
+                      item.ShipDate,
+                      'DD-MM-YYYY',
+                    ).format('YYYY-MM-DD')}',TRIM('${item.BillQty}'),TRIM('${
+                      item.PRICE
+                    }'),TRIM('${item.LineDOCENTRY}'))`,
                     true,
                   )
                     .then(() => {
@@ -1522,7 +1566,7 @@ export class GrpoService {
                           !String(myFile.ID).includes('null')
                         ) {
                           return await executeAndReturnResult(
-                            `DELETE FROM "SRM_GRPO2" WHERE "ID"='${myFile.ID}'`,
+                            `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${myFile.ID}')`,
                             true,
                           )
                             .catch((e) => {
@@ -1547,7 +1591,7 @@ export class GrpoService {
                         !String(attachments.ID).includes('null')
                       ) {
                         return await executeAndReturnResult(
-                          `DELETE FROM "SRM_GRPO2" WHERE "ID"='${attachments.ID}'`,
+                          `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${attachments.ID}')`,
                           true,
                         )
                           .catch((e) => {
@@ -1566,9 +1610,9 @@ export class GrpoService {
                         let count = 0;
                         await files.map(async (file, index) => {
                           await executeAndReturnResult(
-                            `INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES ('${
+                            `INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES ( TRIM('${
                               header.DRAFTNO
-                            }', '${file.originalname}', '${
+                            }'), '${file.originalname}', '${
                               true
                                 ? process.env.SHARE_FOLDER_PATH
                                 : '\\\\192.168.5.191\\Backup\\ZAINWEBSITETESTING\\SRM\\attachments\\'
@@ -1612,11 +1656,11 @@ export class GrpoService {
     } else {
       await global.connection.beginTransaction();
       return executeAndReturnResult(
-        `UPDATE "SRM_OGRPO" SET "BILLNO"='${
+        `UPDATE "SRM_OGRPO" SET "BILLNO"= TRIM('${
           header.BILLNO
-        }',"BILLDATE"='${moment(header.BILLDATE, 'DD-MM-YYYY').format(
+        }'),"BILLDATE"='${moment(header.BILLDATE, 'DD-MM-YYYY').format(
           'YYYY-MM-DD',
-        )}' WHERE "DOCENTRY"='${header.DRAFTNO}'`,
+        )}' WHERE "DOCENTRY"= TRIM('${header.DRAFTNO}')`,
         true,
       )
         .then(async () => {
@@ -1625,7 +1669,7 @@ export class GrpoService {
             await items.forEach(async (item) => {
               if (item.toDelete && item.ID !== null) {
                 await executeAndReturnResult(
-                  `DELETE FROM "SRM_GRPO1" WHERE "ID"='${item.ID}'`,
+                  `DELETE FROM "SRM_GRPO1" WHERE "ID"= TRIM('${item.ID}')`,
                   true,
                 )
                   .then(() => {
@@ -1639,7 +1683,7 @@ export class GrpoService {
                   });
               } else if (item.toChange && item.ID !== null) {
                 await executeAndReturnResult(
-                  `UPDATE "SRM_GRPO1" SET "BILLQTY"='${item.BillQty}' AND "PRICE" = '${item.Price}' WHERE "ID"='${item.ID}'`,
+                  `UPDATE "SRM_GRPO1" SET "BILLQTY"= TRIM('${item.BillQty}') AND "PRICE" = TRIM('${item.Price}') WHERE "ID"= TRIM('${item.ID}')`,
                   true,
                 )
                   .then(() => {
@@ -1653,15 +1697,18 @@ export class GrpoService {
                   });
               } else if (item.toAdd && item.ID === null) {
                 await executeAndReturnResult(
-                  `INSERT INTO "SRM_GRPO1" ("DOCENTRY","LINENUM","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","BILLQTY","PRICE") VALUES ('${
+                  `INSERT INTO "SRM_GRPO1" ("DOCENTRY","LINENUM","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","BILLQTY","PRICE","LINEDOCENTRY") VALUES (TRIM('${
                     header.DRAFTNO
-                  }','${item.LineNum}','${item['PO#']}','${
+                  }'),'${item.LineNum}',TRIM('${item['PO#']}'), TRIM('${
                     item['GRPO#']
-                  }','${moment(item.DocDate).format('YYYY-MM-DD')}','${
+                  }'),'${moment(item.DocDate).format('YYYY-MM-DD')}','${
                     item.ItemCode
-                  }','${item['Item Dsc']}','${moment(item.ShipDate).format(
-                    'YYYY-MM-DD',
-                  )}','${item.BillQty}','${item.PRICE}')`,
+                  }','${item['Item Dsc']}','${moment(
+                    item.ShipDate,
+                    'DD-MM-YYYY',
+                  ).format('YYYY-MM-DD')}', TRIM('${item.BillQty}'), TRIM('${
+                    item.PRICE
+                  }'),TRIM('${item.LineDOCENTRY}'))`,
                   true,
                 )
                   .then(() => {
@@ -1695,7 +1742,7 @@ export class GrpoService {
                         !String(myFile.ID).includes('null')
                       ) {
                         return await executeAndReturnResult(
-                          `DELETE FROM "SRM_GRPO2" WHERE "ID"='${myFile.ID}'`,
+                          `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${myFile.ID}')`,
                           true,
                         )
                           .catch((e) => {
@@ -1720,7 +1767,7 @@ export class GrpoService {
                       !String(attachments.ID).includes('null')
                     ) {
                       return await executeAndReturnResult(
-                        `DELETE FROM "SRM_GRPO2" WHERE "ID"='${attachments.ID}'`,
+                        `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${attachments.ID}')`,
                         true,
                       )
                         .catch((e) => {
@@ -1897,23 +1944,23 @@ export class GrpoService {
         await global.connection.beginTransaction();
         const updateStatus = await executeAndReturnResult(
           `
-          UPDATE "SRM_OGRPO" SET "STATUS" = 'completed' WHERE "DOCENTRY" = '${header.DRAFTNO}';
+          UPDATE "SRM_OGRPO" SET "STATUS" = 'completed' WHERE "DOCENTRY" = TRIM('${header.DRAFTNO}');
         `,
           true,
         );
         if (updateStatus.count !== 0) {
           const actualDetails = await executeAndReturnResult(`
-          SELECT * FROM "SRM_OGRPO" WHERE "DOCENTRY" = '${header.DRAFTNO}';
+          SELECT * FROM "SRM_OGRPO" WHERE "DOCENTRY" = TRIM('${header.DRAFTNO}');
         `);
           if (actualDetails.count !== 0) {
             const itemData = await executeAndReturnResult(`
             SELECT *,T1."DocEntry" AS "GRPOBASE" FROM "SRM_GRPO1" T0
             LEFT JOIN "OPDN" T1 ON T0."GRPONO" = T1."DocNum"
-            WHERE "DOCENTRY" = '${header.DRAFTNO}';
+            WHERE "DOCENTRY" = TRIM('${header.DRAFTNO}');
             `);
             if (itemData.count !== 0) {
               const attachmentsDetails = await executeAndReturnResult(`
-              SELECT * FROM "SRM_GRPO2" WHERE "DOCENTRY" = '${header.DRAFTNO}';
+              SELECT * FROM "SRM_GRPO2" WHERE "DOCENTRY" = TRIM('${header.DRAFTNO}');
               `);
               if (attachmentsDetails.count !== 0) {
                 const sapPayload = {
@@ -1940,6 +1987,16 @@ export class GrpoService {
                   })) as any,
                 );
                 if (sapResponse) {
+                  const { DocEntry: SuccessDocEntry } = sapResponse;
+                  // Update SRM_GRPO DRAFTID
+                  await global.connection.beginTransaction();
+                  await executeAndReturnResult(
+                    `UPDATE SRM_OGRPO SET DRAFTID= TRIM('${SuccessDocEntry}') WHERE DOCENTRY= TRIM('${header.DRAFTNO}');`,
+                    true,
+                  ).then(async () => {
+                    await global.connection.commit();
+                  });
+
                   return { message: 'GRPO And Invoice Created', data: null };
                 } else {
                   throw new HttpException('Error Creating Invoice', 500);
@@ -1968,21 +2025,21 @@ export class GrpoService {
 
       const deleteItems = await executeAndReturnResult(
         `
-        DELETE FROM "SRM_GRPO1" WHERE "DOCENTRY" = '${id}';
+        DELETE FROM "SRM_GRPO1" WHERE "DOCENTRY" = TRIM('${id}');
         `,
         true,
       );
       if (deleteItems.count != 0) {
         const deleteAttachments = await executeAndReturnResult(
           `
-          DELETE FROM "SRM_GRPO2" WHERE "DOCENTRY" = '${id}';
+          DELETE FROM "SRM_GRPO2" WHERE "DOCENTRY" = TRIM('${id}');
           `,
           true,
         );
         if (deleteAttachments.count != 0) {
           const result = await executeAndReturnResult(
             `
-            DELETE FROM "SRM_OGRPO" WHERE "DOCENTRY" = '${id}';
+            DELETE FROM "SRM_OGRPO" WHERE "DOCENTRY" = TRIM('${id}');
             `,
             true,
           );

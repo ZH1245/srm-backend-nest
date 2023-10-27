@@ -75,7 +75,7 @@ export class UserService {
     const result = (await global.connection
       .query(
         `
-        SELECT "ID","OTPCODE", "EXPIRYTIME" FROM "SRMOTPCODES" WHERE "EMAIL" = ${body.email};
+        SELECT "ID","OTPCODE", "EXPIRYTIME" FROM "SRMOTPCODES" WHERE "EMAIL" = TRIM('${body.email}');
       `,
       )
       .catch((e) => {
@@ -92,7 +92,7 @@ export class UserService {
           const changesInUserTable = await global.connection
             .query(
               `
-          UPDATE "SRMUSERS" SET "ISVERIFIED" = 1 WHERE "EMAIL" = ${body.email};
+          UPDATE "SRMUSERS" SET "ISVERIFIED" = 1 WHERE "EMAIL" = TRIM('${body.email}');
           `,
             )
             .catch(async (e) => {
@@ -106,7 +106,7 @@ export class UserService {
           const changesInOTPTable = await global.connection
             .query(
               `
-          Update "SRMOTPCODES" SET "ISUSED" = 1 WHERE "EMAIL" = ${body.email} AND "ID" = ${body.id};
+          Update "SRMOTPCODES" SET "ISUSED" = 1 WHERE "EMAIL" = TRIM('${body.email}') AND "ID" = TRIM('${body.id}');
           `,
             )
             .catch(async (e) => {
@@ -135,7 +135,7 @@ export class UserService {
     const result = await global.connection
       .query(
         `
-        UPDATE "SRMUSERS" SET "ISACTIVE" = false WHERE "ID" = '${body.ID}';
+        UPDATE "SRMUSERS" SET "ISACTIVE" = false WHERE "ID" = TRIM('${body.ID}');
     `,
       )
       .catch(async (e) => {
@@ -162,7 +162,7 @@ export class UserService {
     const result = await global.connection
       .query(
         `
-        UPDATE "SRMUSERS" SET "ISACTIVE" = true WHERE "ID" = '${body.ID}';
+        UPDATE "SRMUSERS" SET "ISACTIVE" = true WHERE "ID" = TRIM('${body.ID}');
     `,
       )
       .catch(async (e) => {
@@ -189,7 +189,7 @@ export class UserService {
     const result = await global.connection
       .query(
         `
-        DELETE FROM "SRMUSERS" WHERE "ID" = '${body.ID}';
+        DELETE FROM "SRMUSERS" WHERE "ID" = TRIM('${body.ID}');
     `,
       )
       .catch(async (e) => {
@@ -227,7 +227,7 @@ export class UserService {
     // const hashedPassword = await hash(body.PASSWORD, salt);
     // ---------------------------------------------
     const existingUser = await executeAndReturnResult(
-      `SELECT "EMAIL" FROM "SRMUSERS" WHERE "EMAIL" = '${body.EMAIL}';`,
+      `SELECT "EMAIL" FROM "SRMUSERS" WHERE "EMAIL" = TRIM('${body.EMAIL}');`,
     ).catch((e) => {
       throw new HttpException(e.message, 400);
     });
@@ -240,7 +240,7 @@ export class UserService {
     } else {
       await global.connection.beginTransaction();
       const result = await executeAndReturnResult(
-        `INSERT INTO "SRMUSERS" ("NAME","EMAIL","ROLE","MOBILE","PASSWORD","CODE") VALUES ('${body.NAME}','${body.EMAIL}','${body.ROLE}','${body.MOBILE}','${body.PASSWORD}','${body.CODE}');`,
+        `INSERT INTO "SRMUSERS" ("NAME","EMAIL","ROLE","MOBILE","PASSWORD","CODE") VALUES ( TRIM('${body.NAME}'), TRIM('${body.EMAIL}') , TRIM('${body.ROLE}') ,TRIM('${body.MOBILE}'), TRIM('${body.PASSWORD}'), TRIM('${body.CODE}'));`,
         true,
       )
         // const result = await createStatementAndExecute(
@@ -278,13 +278,13 @@ export class UserService {
         `
     UPDATE "SRMUSERS"
       SET
-      "NAME" = '${body.NAME}',
-      "EMAIL" = '${body.EMAIL}',
-      "ROLE" = '${body.ROLE}',
-      "MOBILE" = '${body.MOBILE}',
-      "CODE" = '${body.CODE}',
+      "NAME" = TRIM('${body.NAME}'),
+      "EMAIL" = TRIM('${body.EMAIL}'),
+      "ROLE" = TRIM('${body.ROLE}'),
+      "MOBILE" = TRIM('${body.MOBILE}'),
+      "CODE" = TRIM('${body.CODE}'),
       "ISACTIVE" = ${body.ISACTIVE === '1' ? true : false}
-      WHERE "ID" = ${body.ID};
+      WHERE "ID" = TRIM('${body.ID}');
     `,
       )
       .catch(async (e) => {
@@ -309,7 +309,7 @@ export class UserService {
   async getMyDetails(id: string) {
     const result = await global.connection
       .query(
-        `SELECT "NAME", "EMAIL","MOBILE" FROM "SRMUSERS" WHERE "ID" = '${id}';
+        `SELECT "NAME", "EMAIL","MOBILE" FROM "SRMUSERS" WHERE "ID" = TRIM('${id}');
     `,
       )
       .catch((e) => {
@@ -333,8 +333,8 @@ export class UserService {
       await global.connection.beginTransaction();
       const result = await global.connection
         .query(
-          `UPDATE "SRMUSERS" SET "NAME" = '${payload.NAME}', "EMAIL" = '${payload.EMAIL}', "MOBILE" = '${payload.MOBILE}', "PASSWORD" = '${payload.PASSWORD}'
-      WHERE "ID" = '${payload.ID}';`,
+          `UPDATE "SRMUSERS" SET "NAME" = TRIM('${payload.NAME}'), "EMAIL" = TRIM('${payload.EMAIL}'), "MOBILE" = TRIM('${payload.MOBILE}'), "PASSWORD" = TRIM('${payload.PASSWORD}')
+      WHERE "ID" = TRIM('${payload.ID}');`,
         )
         // const result = await createStatementAndExecute(
         //   'UPDATE "SRMUSERS" SET "NAME" = ?, "EMAIL" = ?, "MOBILE" = ?, "PASSWORD" = ?, ISVERIFIED = false WHERE "ID" = ?;',

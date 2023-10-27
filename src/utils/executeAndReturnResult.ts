@@ -12,12 +12,20 @@ export async function executeAndReturnResult(
       .catch((e) => {
         // console.log(params);
         console.log(e);
-        throw new Error(e.message);
+        console.error(e.message);
+        // throw new Error(e.message);
+        throw new Error(
+          'Server Error: Execution Context Error. Please Contact MIS! ',
+        );
       });
     return result;
   } catch (e) {
     if (isTransaction) await global.connection.rollback();
     console.log(e);
-    throw new Error(e.message);
+    console.error(e.message);
+    // throw new Error(e.message);
+    throw new Error(
+      'Server Error: Execution Context Error. Please Contact MIS! ',
+    );
   }
 }
