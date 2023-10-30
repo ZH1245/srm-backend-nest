@@ -22,52 +22,92 @@ export class DashboardService {
       //   (
       //     SELECT
       //   DISTINCT P."DocNum" AS "GRPO#"
-      // FROM "PDN1" P1
-      // INNER JOIN "OPDN" P on P1."DocEntry" = P."DocEntry" AND P."CardCode" = '${
-      //   authUser.CODE
-      // }'
-      // INNER JOIN "OPOR" PR ON TO_VARCHAR(PR."DocNum") = TO_VARCHAR(P1."BaseRef")
-      // LEFT JOIN "@OIGP" GP ON TO_VARCHAR(P."U_GPN") = TO_VARCHAR(GP."DocNum")
-      // WHERE P."DocDate" >= '2023-01-01' AND P."U_GPN" IS NOT NULL
-      // AND P1."ItemCode" NOT IN
-      //   (
-      //     SELECT "ItemCode"  FROM "PCH1" AP1
-      //     INNER JOIN "OPCH" AP ON AP."DocEntry" = AP1."DocEntry"
-      //     WHERE TO_VARCHAR(AP1."BaseRef") = TO_VARCHAR(P."DocNum") AND AP."DocStatus" <> 'C'
-      //   )
-      //   AND P1."ItemCode" NOT IN (
-      //     SELECT "ITEMCODE" FROM "SRM_GRPO1" SG1
-      //     INNER JOIN "SRM_OGRPO" SG ON SG."DOCENTRY" = SG1."DOCENTRY" WHERE SG."VENDORCODE" = '${authUser.CODE.trim()}' AND "BILLNO" = GP."U_DANo"
-      //   ));`,
+      //   FROM "PDN1" P1
+      //     INNER JOIN "OPDN" P on P1."DocEntry" = P."DocEntry"
+      //     INNER JOIN "OPOR" PR ON TO_VARCHAR(PR."DocNum") = TO_VARCHAR(P1."BaseRef")
+      //     LEFT JOIN "@OIGP" GP ON TO_VARCHAR(P."U_GPN") = TO_VARCHAR(GP."DocNum")
+      //     LEFT JOIN "OBPL" BR ON P."BPLId" = BR."BPLId"
+      //     LEFT JOIN "SRM_GRPO1" SG1 ON P1."DocEntry" = SG1."LINEDOCENTRY" AND P1."ItemCode" = SG1."ITEMCODE"
+      //     WHERE P."DocDate" >= '2023-01-01'
+      //     AND P."U_GPN" IS NOT NULL
+      //     AND P."CardCode" = TRIM('${authUser.CODE}')
+      //     AND P1."ItemCode" NOT IN ( SELECT
+      //       "ItemCode"
+      //       FROM "PCH1" AP1
+      //       INNER JOIN "OPCH" AP ON AP."DocEntry" = AP1."DocEntry"
+      //       WHERE TO_VARCHAR(AP1."BaseRef") = TO_VARCHAR(P."DocNum")
+      //       AND AP."DocStatus" <> 'C' )
+      //     AND P1."ItemCode" NOT IN ( SELECT
+      //       "ItemCode"
+      //       FROM "SRM_OGRPO"
+      //       WHERE "VENDORCODE" = TRIM('${authUser.CODE}')
+      //       AND "BILLNO" = GP."U_DANo" )
+      //       AND SG1."LINEDOCENTRY" IS NULL
+      //   );`,
       // );
       const result: Result<{ COUNT: string }> = await executeAndReturnResult(
-        `SELECT COUNT("GRPO#") AS "COUNT"
-        FROM
-        (
+        `SELECT COUNT("GRPO#") AS COUNT FROM (
+          SELECT "GRPO#"--, SUM("OpenQty") AS "OpenQty", SUM("LINEOPENQTY") 
+          FROM (
+          
           SELECT
-        DISTINCT P."DocNum" AS "GRPO#"
-        FROM "PDN1" P1 
-          INNER JOIN "OPDN" P on P1."DocEntry" = P."DocEntry" 
-          INNER JOIN "OPOR" PR ON TO_VARCHAR(PR."DocNum") = TO_VARCHAR(P1."BaseRef") 
-          LEFT JOIN "@OIGP" GP ON TO_VARCHAR(P."U_GPN") = TO_VARCHAR(GP."DocNum") 
-          LEFT JOIN "OBPL" BR ON P."BPLId" = BR."BPLId" 
-          LEFT JOIN "SRM_GRPO1" SG1 ON P1."DocEntry" = SG1."LINEDOCENTRY" AND P1."ItemCode" = SG1."ITEMCODE"
-          WHERE P."DocDate" >= '2023-01-01' 
-          AND P."U_GPN" IS NOT NULL 
-          AND P."CardCode" = TRIM('${authUser.CODE}')
-          AND P1."ItemCode" NOT IN ( SELECT
-            "ItemCode" 
-            FROM "PCH1" AP1 
-            INNER JOIN "OPCH" AP ON AP."DocEntry" = AP1."DocEntry" 
-            WHERE TO_VARCHAR(AP1."BaseRef") = TO_VARCHAR(P."DocNum") 
-            AND AP."DocStatus" <> 'C' ) 
-          AND P1."ItemCode" NOT IN ( SELECT
-            "ItemCode" 
-            FROM "SRM_OGRPO" 
-            WHERE "VENDORCODE" = TRIM('${authUser.CODE}')
-            AND "BILLNO" = GP."U_DANo" )
-            AND SG1."LINEDOCENTRY" IS NULL  
-        );`,
+                    p."CardCode",
+                    P."DocNum" AS "GRPO#",
+                    P."BPLId" AS "BranchID",
+                    (SELECT "Series" FROM "VW_SRM_APSERIES" WHERE "SeriesName" = LEFT(S."SeriesName",5)) AS "Series" ,
+                    P."BPLName" AS "BranchName",
+                    (SELECT TO_VARCHAR(TO_DATE("DocDate"),'DD-MM-YYYY') FROM OPOR mm WHERE TO_VARCHAR(mm."DocNum") = P1."BaseRef")"DocDate",
+                    "Quantity" AS "TotalQty",
+                    
+                    --IFNULL(P1."OpenQty",P1."Quantity") AS "OpenQty",
+                    IFNULL(P1."OpenQty",P1."Quantity") AS "BillQty",
+                    
+                    GP."U_DANo" AS "Bill#",
+                    TO_VARCHAR(TO_DATE(P."DocDate"),'DD-MM-YYYY') AS "BillDate",
+                    P1."BaseRef" AS "PO#",
+                    IFNULL(P1."U_QtyFail",0) AS "RejectedQty",
+                    IFNULL(P1."U_QtyPass",P1."Quantity") AS "PassedQty",
+                    TO_VARCHAR(TO_DATE(P1."ShipDate"),'DD-MM-YYYY') AS "ShipDate",
+                    P1."ItemCode",
+                    P1."Dscription" AS "Item Dsc",
+                    P1."LineNum" AS "LineNum",
+                    P."DocEntry" AS "LineDOCENTRY",
+                    P1."BaseRef" AS "LineBASEREF",
+                    P1."BaseType" AS "LineBASETYPE",
+                    P1."BaseEntry" AS "LineBASEENTRY",
+                    P1."BaseLine" AS "LineBASELINE",
+                    P1."Price" AS "PRICE",
+                    P1."Currency"AS "Curr",
+                    P1."OpenQty" AS "LINEOPENQTY" ,
+                    --a."BillQty",
+                    (P1."OpenQty" -IFNULL(a."BillQty",0)) "OpenQty"
+                    FROM "PDN1" P1 
+                    INNER JOIN "OPDN" P on P1."DocEntry" = P."DocEntry"  
+                    LEFT JOIN "@OIGP" GP ON TO_VARCHAR(P."U_GPN") = TO_VARCHAR(GP."DocNum") 
+                    LEFT JOIN
+                    (
+                    SELECT d."GRPONO", d."ITEMCODE",SUM(d."BILLQTY")"BillQty",d."LINENUM"
+                    FROM "SRM_OGRPO" m 
+                    INNER JOIN "SRM_GRPO1" d ON m."DOCENTRY" = d."DOCENTRY" 
+                    WHERE "VENDORCODE" = TRIM('${authUser.CODE}') AND m."STATUS" = 'ready'  --AND "BILLNO" = GP."U_DANo"
+                    GROUP BY  d."GRPONO", d."ITEMCODE",d."LINENUM"
+                    )a ON a."GRPONO" = P."DocNum" AND a."ITEMCODE" = P1."ItemCode" AND a."LINENUM" = P1."LineNum" 
+                    LEFT JOIN NNM1 S ON S."Series" = P."Series"  
+                    WHERE P."DocDate" >= '2023-01-01' AND P."U_GPN" IS NOT NULL AND P."CardCode" = TRIM('${authUser.CODE}') --'$VENDOR' 
+                    AND P1."ItemCode" NOT IN 
+                    (
+                    SELECT
+                    AP1."ItemCode" 
+                    FROM "PCH1" AP1 
+                    INNER JOIN "OPCH" AP ON AP."DocEntry" = AP1."DocEntry" 
+                    WHERE TO_VARCHAR(AP1."BaseRef") = TO_VARCHAR(P."DocNum") AND AP1."ItemCode" = p1."ItemCode" AND P1."LineNum" = AP1."BaseLine"  AND AP."DocStatus" <> 'C')       
+                    AND (P1."OpenQty" -IFNULL(a."BillQty",0)) > 0 
+                   
+          
+          )
+          GROUP BY "GRPO#"
+          HAVING SUM("OpenQty") > 0
+          )`,
       );
 
       if (result.count !== 0) {
