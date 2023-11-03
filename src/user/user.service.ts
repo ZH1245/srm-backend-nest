@@ -255,14 +255,20 @@ export class UserService {
         //   ],
         // )
         .then(async () => {
-          await global.connection.commit();
-          await this.emailService.sendNewUserEmail({
-            name: body.NAME,
-            code: body.CODE,
-            password: body.PASSWORD,
-            email: body.EMAIL,
-          });
-          return { message: 'User created successfully' };
+          return await global.connection
+            .commit()
+            .catch((e) => {
+              throw new HttpException(e.message, 400);
+            })
+            .then(async () => {
+              await this.emailService.sendNewUserEmail({
+                name: body.NAME,
+                code: body.CODE,
+                password: body.PASSWORD,
+                email: body.EMAIL,
+              });
+              return { message: 'User created successfully' };
+            });
         })
         .catch(async (e) => {
           console.log(e);

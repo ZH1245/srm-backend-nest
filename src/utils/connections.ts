@@ -21,6 +21,7 @@ const db_name = process.env.hana_dbname;
 // const schema = process.env.hana_schema_development;
 const schema =
   'CURRENTSCHEMA=TESTDFL' + moment().format('DDMMYYYY').toString() + ';';
+process.env.hana_schema_development = schema;
 /**
  * The username for the database.
  */
@@ -41,6 +42,7 @@ export async function createConnection() {
   /**
    * The database connection object.
    */
+  // console.log(connectionString);
   const connection: Connection = await connect(connectionString)
     .then((value) => {
       /**

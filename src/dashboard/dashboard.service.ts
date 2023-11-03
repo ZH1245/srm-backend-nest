@@ -94,6 +94,7 @@ export class DashboardService {
                     )a ON a."GRPONO" = P."DocNum" AND a."ITEMCODE" = P1."ItemCode" AND a."LINENUM" = P1."LineNum" 
                     LEFT JOIN NNM1 S ON S."Series" = P."Series"  
                     WHERE P."DocDate" >= '2023-01-01' AND P."U_GPN" IS NOT NULL AND P."CardCode" = TRIM('${authUser.CODE}') --'$VENDOR' 
+                    AND P."DocStatus" <> 'C' AND P."CANCELED" = 'N'
                     AND P1."ItemCode" NOT IN 
                     (
                     SELECT

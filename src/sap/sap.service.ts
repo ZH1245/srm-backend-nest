@@ -4,6 +4,7 @@ import * as https from 'https';
 @Injectable()
 export class SapService {
   async loginSAPUser(user: { code: string; password: string }): Promise<any> {
+    console.log('SAP COMPANY DB:  ', process.env.hana_schema_development);
     return await axios
       .post(
         'https://sap.dfl.com.pk:50000/b1s/v1/Login',
@@ -15,7 +16,8 @@ export class SapService {
           Password: user.password,
           UserName: user.code,
           // CompanyDB: process.env.database,
-          CompanyDB: 'TESTDFL30102023',
+          // CompanyDB: 'TESTDFL02112023',
+          CompanyDB: process.env.hana_schema_development,
           // CompanyDB: process.env.hana_schema,
           // CompanyDB: "APPHIERARCHY19122022",
           // Password: "1234",
