@@ -17,7 +17,9 @@ export class SapService {
           UserName: user.code,
           // CompanyDB: process.env.database,
           // CompanyDB: 'TESTDFL02112023',
-          CompanyDB: process.env.hana_schema_development,
+          CompanyDB: process.env.hana_schema_development
+            .split('=')[1]
+            .split(';')[0],
           // CompanyDB: process.env.hana_schema,
           // CompanyDB: "APPHIERARCHY19122022",
           // Password: "1234",

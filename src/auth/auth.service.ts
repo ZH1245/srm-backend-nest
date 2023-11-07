@@ -88,7 +88,7 @@ export class AuthService {
     return 'register';
   }
   async generateOTP(email: string) {
-    console.log(email);
+    // console.log(email);
     //  check if user exists against en email;
     try {
       const isUser: Result<User> = await executeAndReturnResult(
@@ -98,41 +98,51 @@ export class AuthService {
       //   'SELECT * FROM SRMUSERS WHERE "EMAIL" = ?',
       //   [email],
       // );
-
       if (isUser.count === 0) throw new HttpException('User Not Found', 404);
       else {
-        const code = Math.floor(100000 + Math.random() * 900000);
-        const expiryTime = moment().add(10, 'minutes').format('X');
-        console.log(expiryTime, 'expiryTime');
-        console.log('code', code);
-        // await global.connection.beginTransaction();
-        // const result = await createStatementAndExecute(
-        //   'INSERT INTO SRM_OTP (CODE,EMAIL,EXPIRY,USERID) VALUES (?,?,?,?)',
-        //   [code, email, expiryTime, isUser[0].ID],
-        // )
-        // .catch((e) => {
-        //   throw new HttpException(e.message || 'Error Generating OTP', 400);
-        // })
-        // .then(async (res: Result<any>) => {
-        //   await global.connection.commit();
-        //   return res;
-        // });
-        await global.connection.beginTransaction();
-        const result: Result<any> = await executeAndReturnResult(
-          `INSERT INTO SRM_OTP (CODE,EMAIL,EXPIRY,USERID) VALUES (TRIM('${code}'),TRIM('${email}'),TRIM('${expiryTime}'),TRIM('${isUser[0].ID}'));`,
-          true,
-        );
-        if (result.count !== 0) {
-          //   send email
-          await global.connection.commit();
-          await this.emailService.sendOTPEmail({
-            name: isUser[0].NAME,
-            email: isUser[0].EMAIL,
-            otp: code.toString(),
-          });
-          return { message: 'OTP Sent to Email', data: true };
+        if (isUser[0]['ISACTIVE'] === 0) {
+          throw new HttpException('User not Active', 400);
         } else {
-          throw new HttpException('Error Generating OTP', 400);
+          // console.log('generating OTP');
+          const code = Math.floor(100000 + Math.random() * 900000);
+          // console.log(code);
+          const expiryTime = moment().add(10, 'minutes').format('X');
+          console.log(expiryTime, 'expiryTime');
+          console.log('code', code);
+          // await global.connection.beginTransaction();
+          // const result = await createStatementAndExecute(
+          //   'INSERT INTO SRM_OTP (CODE,EMAIL,EXPIRY,USERID) VALUES (?,?,?,?)',
+          //   [code, email, expiryTime, isUser[0].ID],
+          // )
+          // .catch((e) => {
+          //   throw new HttpException(e.message || 'Error Generating OTP', 400);
+          // })
+          // .then(async (res: Result<any>) => {
+          //   await global.connection.commit();
+          //   return res;
+          // });
+          console.log(email, 'Inside otp generation');
+          await global.connection.beginTransaction((err) => {
+            if (err) throw new Error(err.message);
+          });
+          const result: Result<any> = await executeAndReturnResult(
+            `INSERT INTO SRM_OTP (CODE,EMAIL,EXPIRY,USERID) VALUES (TRIM('${code}'),TRIM('${email}'),TRIM('${expiryTime}'),TRIM('${isUser[0].ID}'));`,
+            true,
+          );
+          if (result.count !== 0) {
+            //   send email
+            await global.connection.commit((err) => {
+              if (err) throw new Error(err.message);
+            });
+            await this.emailService.sendOTPEmail({
+              name: isUser[0].NAME,
+              email: isUser[0].EMAIL,
+              otp: code.toString(),
+            });
+            return { message: 'OTP Sent to Email', data: true };
+          } else {
+            throw new HttpException('Error Generating OTP', 400);
+          }
         }
       }
     } catch (e) {
@@ -217,7 +227,7 @@ export class AuthService {
             }
           }
         } else {
-          throw new HttpException('Error Updating Password', 400);
+          throw new HttpException('Email or OTP Incorrect', 400);
         }
       }
     } catch (e) {

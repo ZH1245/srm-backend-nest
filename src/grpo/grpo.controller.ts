@@ -246,6 +246,7 @@ export class GrpoController {
   ) {
     const user = req.user;
     const result: any = await this.grpoService.updateGrpo(user, files, body);
+    // console.log('RESULTS RETURNED ARE: ', result);
     return res.json({
       data: result?.data ?? null,
       message: result?.message ?? 'Updated Successfully',
@@ -281,5 +282,17 @@ export class GrpoController {
   ) {
     const result = await this.grpoService.deleteGrpo(id);
     return res.json({ data: result.data, message: result.message });
+  }
+
+  @Patch('generate-invoice-by-docno')
+  async createInvoiceUsingDraftDocNo(
+    @Body() body: { docNo: number },
+    @Res() res: Response,
+  ) {
+    console.log(body);
+    const result = await this.grpoService.generateInvoiceFromDraftDocNo(
+      body.docNo,
+    );
+    return res.json({ message: result.message });
   }
 }

@@ -167,8 +167,17 @@ export class DashboardService {
       if (result.count !== 0) {
         counts.users = JSON.parse(result[0].COUNT);
         const defected: Result<{ COUNT: string }> =
+          // await executeAndReturnResult(
+          //   `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = 'completed' AND "DRAFTID" IS NULL`,
+          // );
           await executeAndReturnResult(
-            `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = 'completed' AND "DRAFTID" IS NULL`,
+            `SELECT COUNT("DOCENTRY") AS COUNT FROM "SRM_OGRPO" G
+            WHERE G."DOCENTRY" IN (
+            SELECT G1."DOCENTRY" FROM "SRM_GRPO1" G1 
+            WHERE G1."DRAFTID" IS NULL
+            GROUP BY G1."DOCENTRY"
+            HAVING COUNT(G1."DOCENTRY") > 0
+            ) AND G."STATUS" ='completed'`,
           );
         if (defected.count !== 0) {
           counts.defectedReceipts = JSON.parse(defected[0].COUNT);
@@ -179,8 +188,17 @@ export class DashboardService {
         counts.users = 0;
       }
 
+      // const completed: Result<{ COUNT: string }> = await executeAndReturnResult(
+      //   `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = 'completed' AND "DRAFTID" IS NOT NULL;`,
+      // );
       const completed: Result<{ COUNT: string }> = await executeAndReturnResult(
-        `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = 'completed' AND "DRAFTID" IS NOT NULL;`,
+        `SELECT COUNT("DOCENTRY") AS COUNT FROM "SRM_OGRPO" G
+        WHERE G."DOCENTRY" IN (
+        SELECT G1."DOCENTRY" FROM "SRM_GRPO1" G1 
+        WHERE G1."DRAFTID" IS NOT NULL
+        GROUP BY G1."DOCENTRY"
+        HAVING COUNT(G1."DOCENTRY") > 0
+        ) AND G."STATUS" ='completed';`,
       );
       // const completed: Result<{ COUNT: string }> =
       //   await createStatementAndExecute(

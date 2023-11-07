@@ -293,6 +293,7 @@ export class GrpoService {
          "GRPONO" AS "GRPO#",
          T1."BPLName" AS "BranchName",
          T1."BPLId" AS "BranchID",
+         "APSERIES" AS "Series",
          TO_VARCHAR(TO_DATE("PODATE"),'DD-MM-YYYY') AS "PODate",
          "ITEMCODE" AS "ItemCode",
          --"ITEMDSC" AS "ItemDescription",
@@ -360,13 +361,14 @@ export class GrpoService {
       if (header.count !== 0) {
         result.header = header;
         const items = await executeAndReturnResult(
-          `SELECT "PONO" AS "PO#","GRPONO" AS "GRPO#","PODATE" AS "PO Date","ITEMCODE" AS "Item Code",
+          `SELECT "PONO" AS "PO#","GRPONO" AS "GRPO#", TO_VARCHAR(TO_DATE("PODATE"),'DD-MM-YYYY') AS "PO Date","ITEMCODE" AS "Item Code",
           i."ItemName" AS "Item Name",
           --"ITEMDSC" AS "Item Description",
           (SELECT "BPLName" FROM "OBPL" BP WHERE TO_VARCHAR(BP."BPLId") = TO_VARCHAR(T0."BPLID") ) AS "Branch",
-          "SHIPDATE" AS "Ship Date","BILLQTY" AS "Bill Qty" FROM "SRM_GRPO1" T0 
+          TO_VARCHAR(TO_DATE("SHIPDATE"),'DD-MM-YYYY') AS "Ship Date","BILLQTY" AS "Bill Qty" FROM "SRM_GRPO1" T0 
           LEFT JOIN "OITM" i on T0."ITEMCODE" = i."ItemCode"
-          WHERE T0."DOCENTRY" = TRIM('${id}');`,
+          WHERE T0."DOCENTRY" = TRIM('${id}')
+          ORDER BY "CREATEDAT" DESC;`,
         );
         // const items = await createStatementAndExecute(
         //   `SELECT "DOCENTRY","LINEID","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","RECEIVEDQTY","BILLQTY" FROM "SRM_GRPO1" T0 WHERE T0."DOCENTRY" = ?`,
@@ -1136,12 +1138,7 @@ export class GrpoService {
           const DocEntry = JSON.parse(CurrentDocEntry[0].DOCENTRY) + 1;
           await global.connection.beginTransaction();
           return await executeAndReturnResult(
-            `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS) VALUES (TRIM('${DocEntry}'), TRIM('${BILLNO}'), TRIM('${moment(
-              BILLDATE,
-              'DD-MM-YYYY',
-            ).format('YYYY-MM-DD')}'), TRIM('${VENDOR}'), TRIM('${
-              body.STATUS
-            }'));`,
+            `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS) VALUES (TRIM('${DocEntry}'), TRIM('${BILLNO}'), TRIM('${BILLDATE}'), TRIM('${VENDOR}'), TRIM('${body.STATUS}'));`,
             true,
           )
             // const result = await createStatementAndExecute(
@@ -1658,7 +1655,7 @@ export class GrpoService {
         if (CurrentDocEntry.count !== 0) {
           const DocEntry = JSON.parse(CurrentDocEntry[0].DOCENTRY) + 1;
           await global.connection.beginTransaction();
-
+          console.log(BILLDATE);
           const result = await executeAndReturnResult(
             `INSERT INTO SRM_OGRPO (DOCENTRY, BILLNO, BILLDATE, VENDORCODE, STATUS) VALUES ( TRIM('${DocEntry}'), TRIM('${BILLNO}'), TRIM('${BILLDATE}'), TRIM('${VENDOR}'), TRIM('${body.STATUS}'));`,
             true,
@@ -2055,9 +2052,22 @@ export class GrpoService {
         throw new HttpException('Unauthorized', 401);
       } else {
         const result = await executeAndReturnResult(
-          `SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE",V."CardName" AS "VENDOR",CASE WHEN "STATUS" = 'completed' AND DRAFTID IS NULL THEN 'defected' ELSE "STATUS" END
-           AS "STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT","DRAFTID"  FROM "SRM_OGRPO" G
-          INNER JOIN "OCRD" V ON G."VENDORCODE" = V."CardCode"
+          ` SELECT X."DOCENTRY",X."BILLNO",X."BILLDATE",X."VENDOR",X."CREATEDAT",CASE WHEN IFNULL("DEFECTEDCOUNT",0) > 0 THEN 'defected' WHEN X."STATUS"='ready' THEN 'draft' ELSE X."STATUS" END AS "STATUS"  FROM (
+            SELECT
+              "DOCENTRY",
+             "BILLNO",
+             TO_VARCHAR(TO_DATE("BILLDATE"),
+             'DD-MM-YYYY') AS "BILLDATE",
+             V."CardName" AS "VENDOR",
+             TO_VARCHAR(TO_DATE("CREATEDAT"),
+             'DD-MM-YYYY') AS "CREATEDAT",
+             "STATUS",
+           IFNULL((SELECT COUNT("ITEMCODE") FROM "SRM_GRPO1" g1 WHERE "DRAFTID" IS NULL AND G."DOCENTRY" =g1."DOCENTRY" AND G."STATUS" ='completed'  GROUP BY "DOCENTRY" ),0)  AS "DEFECTEDCOUNT" 
+           FROM "SRM_OGRPO" G 
+           INNER JOIN "OCRD" V ON G."VENDORCODE" = V."CardCode"
+           --WHERE G."STATUS" = 'completed'
+            )X
+            ORDER BY X."CREATEDAT"
           ;`,
         );
         // const result = await createStatementAndExecute(
@@ -2094,8 +2104,16 @@ export class GrpoService {
     if (header.count !== 0) {
       result.header = header[0];
       const items = await executeAndReturnResult(
-        `SELECT "DOCENTRY","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE",
-        PR1."Price"AS "Actual Price",
+        `SELECT 
+        "DOCENTRY",
+        "PONO",
+        "GRPONO",
+        TO_VARCHAR(TO_DATE("PODATE"),'DD-MM-YYYY') AS "PODATE",
+        "ITEMCODE",
+        PR1."Dscription" AS "ITEMDSC",
+        --,"ITEMDSC"
+        TO_VARCHAR(TO_DATE("SHIPDATE"),'DD-MM-YYYY') AS "SHIPDATE",
+        PR1."Price" AS "Actual Price",
         "PRICE" AS "Vendor Price",
         "BILLQTY" 
         FROM "SRM_GRPO1" T0 
@@ -2498,7 +2516,7 @@ export class GrpoService {
         });
     }
   }
-  async updateGrpo(
+  async updateGrpoV2(
     user: UserDashboard,
     files: Express.Multer.File[],
     body: any,
@@ -2875,6 +2893,918 @@ export class GrpoService {
         });
     }
   }
+  async updateGrpo(
+    user: UserDashboard,
+    files: Express.Multer.File[],
+    body: any,
+  ) {
+    // console.log(files, ' files');
+    // console.log(body, ' body');
+    let {
+      header,
+      // : headerString,
+      items,
+      // : ItemsString,
+      attachments,
+      // : attachmentString,
+    } = body;
+    // const header = JSON.parse(headerString);
+    // const items = JSON.parse(ItemsString);
+    // const attachments = JSON.parse(attachmentString);
+    // console.log(header, items, attachments);
+    header = JSON.parse(header);
+    items = JSON.parse(items);
+    attachments =
+      attachments && attachments !== ''
+        ? Array.isArray(attachments)
+          ? attachments
+          : JSON.parse(attachments)
+        : null;
+    console.log(header, items, attachments, files);
+    // return true;
+    const doesPayloadContainsFiles = files && files?.length > 0;
+    const doesPayloadContainsAttachments =
+      attachments || (Array.isArray(attachments) && attachments.length > 0);
+    let areFilesUploaded: boolean | null = null;
+    try {
+      if (doesPayloadContainsFiles) {
+        areFilesUploaded = await this.uploadFiles(files).catch((e) => {
+          throw e;
+        });
+      } else {
+        areFilesUploaded = true;
+      }
+    } catch (e) {
+      throw new HttpException(e.message || 'Error Uploading Files', 500);
+    }
+    try {
+      return await new Promise(async (resolve, reject) => {
+        await global.connection.beginTransaction((error) => {
+          if (error) reject(error?.message || 'Error Creating Transaction');
+        });
+        // debugger;
+        await executeAndReturnResult(
+          `UPDATE "SRM_OGRPO" SET "BILLNO"=TRIM('${
+            header.BILLNO
+          }'),"BILLDATE"='${moment(header.BILLDATE, 'DD-MM-YYYY').format(
+            'YYYY-MM-DD',
+          )}' WHERE "DOCENTRY"= TRIM('${header.DRAFTNO}')`,
+          true,
+        ).catch((e) => {
+          // await global.connection.rollback(err=>{
+          //   reject(err.message||'Error in Rollback transaction')
+          // })
+          reject(e.message);
+        });
+        // debugger;
+        await new Promise(async (res, rej) => {
+          let count = 0;
+          await items.forEach(async (item, index) => {
+            // debugger;
+            if (item.isNew && item.toAdd) {
+              // INSERT
+              // debugger;
+              await executeAndReturnResult(
+                `INSERT INTO "SRM_GRPO1" ("DOCENTRY","LINENUM","PONO","GRPONO","PODATE","ITEMCODE","SHIPDATE","BILLQTY","PRICE","LINEDOCENTRY","BPLID","APSERIES") VALUES (TRIM('${
+                  header.DRAFTNO
+                }'),TRIM('${item.LINENUM}'),TRIM('${item['PONO']}'),TRIM('${
+                  item['GRPONO']
+                }'),'${moment(item.DocDate, 'DD-MM-YYYY').format(
+                  'YYYY-MM-DD',
+                )}','${item.ITEMCODE}','${moment(
+                  item.SHIPDATE,
+                  'DD-MM-YYYY',
+                ).format('YYYY-MM-DD')}',TRIM('${item.BILLQTY}'),TRIM('${
+                  item.PRICE
+                }'),TRIM('${item.LineDOCENTRY}'),TRIM('${item.BRANCH}'),TRIM('${
+                  item.SERIES
+                }'))`,
+                true,
+              ).catch((e) => rej(e.message));
+            } else if (!item.isNew) {
+              // debugger;
+              if (item.toChange) {
+                // debugger;
+                // Change
+                await executeAndReturnResult(
+                  `UPDATE "SRM_GRPO1" SET "BILLQTY"= TRIM('${item.BILLQTY}') , "PRICE" = TRIM('${item.PRICE}') WHERE "ID"= TRIM('${item.ID}')`,
+                  true,
+                ).catch((e) => rej(e));
+              } else if (item.toDelete) {
+                // debugger;
+                // Delete
+                await executeAndReturnResult(
+                  `DELETE FROM "SRM_GRPO1" WHERE "ID"= TRIM('${item.ID}')`,
+                  true,
+                ).catch((e) => rej(e));
+              }
+            }
+            count++;
+            if (count === items.length) {
+              res(true);
+            }
+          });
+        })
+          .catch((e) => {
+            reject(e);
+          })
+          .then(() => true);
+        // debugger;
+        if (doesPayloadContainsAttachments) {
+          debugger;
+          await new Promise(async (res, rej) => {
+            if (Array.isArray(attachments)) {
+              let count = 0;
+              await attachments.forEach(async (file, index) => {
+                const myFile = JSON.parse(file);
+                if (myFile.toDelete) {
+                  // delete
+                  await executeAndReturnResult(
+                    `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${myFile.ID}')`,
+                    true,
+                  ).catch((e) => rej(e.message));
+                }
+                count++;
+                if (count === attachments.length) {
+                  res(true);
+                }
+              });
+            } else {
+              // add single file
+              if (
+                attachments.toDelete &&
+                !String(attachments.ID).includes('null')
+              ) {
+                await executeAndReturnResult(
+                  `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${attachments.ID}')`,
+                  true,
+                ).catch((e) => rej(e));
+              }
+            }
+            res(true);
+          }).catch((e) => reject(e));
+        }
+        // debugger;
+        if (doesPayloadContainsFiles) {
+          // debugger;
+          await new Promise(async (res, rej) => {
+            let count = 0;
+            await files.map(async (file, index) => {
+              await executeAndReturnResult(
+                `INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES ( TRIM('${
+                  header.DRAFTNO
+                }'), '${file.originalname}', '${
+                  true
+                    ? process.env.SHARE_FOLDER_PATH
+                    : '\\\\192.168.5.191\\Backup\\ZAINWEBSITETESTING\\SRM\\attachments\\'
+                }');`,
+                true,
+              ).catch((e) => {
+                console.log(e, ' :1646');
+                rej(e);
+              });
+              count++;
+              if (count == files.length) {
+                res(true);
+              }
+            });
+          })
+            .then(async () => {
+              resolve('Draft Updated');
+            })
+            .catch((e) => {
+              reject(e.message);
+            });
+        } else {
+          // debugger;
+          await global.connection.commit((err) => {
+            if (err) throw err;
+          });
+          resolve('Draft Updated');
+        }
+      })
+        .catch(async (e) => {
+          // debugger;
+          await global.connection.rollback((err) => {
+            if (err) throw new Error(err.message);
+          });
+          throw new Error(e.message);
+        })
+        .then(async () => {
+          // debugger;
+          await global.connection.commit((err) => {
+            if (err) throw new Error(err.message);
+          });
+          return true;
+        });
+    } catch (e: any) {
+      throw new HttpException(e.message, 500);
+    }
+    // return true;
+    // if (files && files?.length > 0) {
+    //   try {
+    //     const uploadFiles = await this.uploadFiles(files);
+    //     if (uploadFiles) {
+    //       await global.connection.beginTransaction();
+    //       return executeAndReturnResult(
+    //         `UPDATE "SRM_OGRPO" SET "BILLNO"=TRIM('${
+    //           header.BILLNO
+    //         }'),"BILLDATE"='${moment(header.BILLDATE, 'DD-MM-YYYY').format(
+    //           'YYYY-MM-DD',
+    //         )}' WHERE "DOCENTRY"= TRIM('${header.DRAFTNO}')`,
+    //         true,
+    //       )
+    //         .then(async () => {
+    //           return await new Promise(async (res, rej) => {
+    //             let count = 0;
+    //             console.log(items);
+    //             await items.forEach(async (item) => {
+    //               if (item.toDelete && item.ID !== null) {
+    //                 await executeAndReturnResult(
+    //                   `DELETE FROM "SRM_GRPO1" WHERE "ID"= TRIM('${item.ID}')`,
+    //                   true,
+    //                 )
+    //                   .then(() => {
+    //                     count++;
+    //                     if (count == items.length) {
+    //                       res(true);
+    //                     }
+    //                   })
+    //                   .catch((e) => {
+    //                     rej(e);
+    //                   });
+    //               } else if (item.toChange && item.ID !== null) {
+    //                 await executeAndReturnResult(
+    //                   `UPDATE "SRM_GRPO1" SET "BILLQTY"= TRIM('${item.BILLQTY}') AND "PRICE" = TRIM('${item.PRICE}') WHERE "ID"= TRIM('${item.ID}')`,
+    //                   true,
+    //                 )
+    //                   .then(() => {
+    //                     count++;
+    //                     if (count == items.length) {
+    //                       res(true);
+    //                     }
+    //                   })
+    //                   .catch((e) => {
+    //                     rej(e);
+    //                   });
+    //               } else if (item.toAdd && item.ID === null) {
+    //                 await executeAndReturnResult(
+    //                   `INSERT INTO "SRM_GRPO1" ("DOCENTRY","LINENUM","PONO","GRPONO","PODATE","ITEMCODE","SHIPDATE","BILLQTY","PRICE","LINEDOCENTRY","BPLID","APSERIES") VALUES (TRIM('${
+    //                     header.DRAFTNO
+    //                   }'),TRIM('${item.LINENUM}'),TRIM('${
+    //                     item['PONO']
+    //                   }'),TRIM('${item['GRPONO']}'),'${moment(
+    //                     item.DocDate,
+    //                     'DD-MM-YYYY',
+    //                   ).format('YYYY-MM-DD')}','${item.ITEMCODE}','${moment(
+    //                     item.SHIPDATE,
+    //                     'DD-MM-YYYY',
+    //                   ).format('YYYY-MM-DD')}',TRIM('${item.BILLQTY}'),TRIM('${
+    //                     item.PRICE
+    //                   }'),TRIM('${item.LineDOCENTRY}'),TRIM('${
+    //                     item.BRANCH
+    //                   }'),TRIM('${item.SERIES}'))`,
+    //                   true,
+    //                 )
+    //                   .then(() => {
+    //                     count++;
+    //                     if (count == items.length) {
+    //                       res(true);
+    //                     }
+    //                   })
+    //                   .catch((e) => {
+    //                     console.log(e);
+    //                     rej(e);
+    //                   });
+    //               } else if (!item.toAdd && !item.toChange && !item.toDelete) {
+    //                 count++;
+    //                 if (count == items.length) {
+    //                   res(true);
+    //                 }
+    //               }
+    //             });
+    //           })
+    //             .then(async (res) => {
+    //               if (res) {
+    //                 return await new Promise(async (resolve, reject) => {
+    //                   let count = 0;
+    //                   console.log(attachments, ' :1575');
+    //                   if (attachments && Array.isArray(attachments)) {
+    //                     await attachments.forEach(async (file, index) => {
+    //                       const myFile = JSON.parse(file);
+    //                       if (
+    //                         myFile.toDelete &&
+    //                         !String(myFile.ID).includes('null')
+    //                       ) {
+    //                         await executeAndReturnResult(
+    //                           `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${myFile.ID}')`,
+    //                           true,
+    //                         )
+    //                           .catch((e) => {
+    //                             console.log(e, ' :1588');
+    //                             reject(e);
+    //                           })
+    //                           .then(() => {
+    //                             count++;
+    //                             if (count == attachments.length) {
+    //                               resolve(true);
+    //                             }
+    //                           });
+    //                       } else {
+    //                         console.log('inside not delete : 1598');
+    //                         count++;
+    //                         if (count == attachments.length) {
+    //                           resolve(true);
+    //                         }
+    //                       }
+    //                     });
+    //                   } else {
+    //                     if (
+    //                       attachments.toDelete &&
+    //                       !String(attachments.ID).includes('null')
+    //                     ) {
+    //                       return await executeAndReturnResult(
+    //                         `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${attachments.ID}')`,
+    //                         true,
+    //                       )
+    //                         .catch((e) => {
+    //                           console.log(e, ' :1614');
+    //                           reject(e);
+    //                         })
+    //                         .then(() => {
+    //                           resolve(true);
+    //                         });
+    //                     } else {
+    //                       resolve(true);
+    //                     }
+    //                   }
+    //                 })
+    //                   .then(async () => {
+    //                     return await new Promise(async (resolve, reject) => {
+    //                       let count = 0;
+    //                       await files.map(async (file, index) => {
+    //                         await executeAndReturnResult(
+    //                           `INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES ( TRIM('${
+    //                             header.DRAFTNO
+    //                           }'), '${file.originalname}', '${
+    //                             true
+    //                               ? process.env.SHARE_FOLDER_PATH
+    //                               : '\\\\192.168.5.191\\Backup\\ZAINWEBSITETESTING\\SRM\\attachments\\'
+    //                           }');`,
+    //                           true,
+    //                         )
+    //                           .then(() => {
+    //                             count++;
+    //                             if (count == files.length) {
+    //                               resolve(true);
+    //                             }
+    //                           })
+    //                           .catch((e) => {
+    //                             console.log(e, ' :1646');
+    //                             reject(e);
+    //                           });
+    //                       });
+    //                     }).then(async () => {
+    //                       console.log('comitted');
+    //                       await global.connection.commit();
+    //                       return { data: null, message: 'GRPO Updated' };
+    //                     });
+    //                   })
+    //                   .catch(async (e) => {
+    //                     await global.connection.rollback();
+    //                     console.log(e, ' :1656');
+    //                     throw new Error(e.message);
+    //                   });
+    //               } else {
+    //                 await global.connection.rollback();
+    //                 const error: any = new Error('Error updating items');
+    //                 error.code = 500;
+    //                 throw error;
+    //               }
+    //             })
+    //             .catch(async (e) => {
+    //               console.log(e, ':1671');
+    //               await global.connection.rollback();
+    //               throw new HttpException(e.message, 500);
+    //             });
+    //         })
+    //         .catch(async (e) => {
+    //           await global.connection.rollback();
+    //           console.log(e, ':1676');
+    //           throw new HttpException(e.message, 500);
+    //         });
+    //     } else {
+    //       throw new HttpException('Files not uploaded', 500);
+    //     }
+    //   } catch (e) {
+    //     throw new Error(e.message);
+    //   }
+    // } else {
+    //   await global.connection.beginTransaction();
+    //   return executeAndReturnResult(
+    //     `UPDATE "SRM_OGRPO" SET "BILLNO"= TRIM('${
+    //       header.BILLNO
+    //     }'),"BILLDATE"='${moment(header.BILLDATE, 'DD-MM-YYYY').format(
+    //       'YYYY-MM-DD',
+    //     )}' WHERE "DOCENTRY"= TRIM('${header.DRAFTNO}')`,
+    //     true,
+    //   )
+    //     .then(async () => {
+    //       return await new Promise(async (res, rej) => {
+    //         let count = 0;
+    //         await items.forEach(async (item) => {
+    //           if (item.toDelete && item.ID !== null) {
+    //             await executeAndReturnResult(
+    //               `DELETE FROM "SRM_GRPO1" WHERE "ID"= TRIM('${item.ID}')`,
+    //               true,
+    //             )
+    //               .then(() => {
+    //                 count++;
+    //                 if (count == items.length) {
+    //                   res(true);
+    //                 }
+    //               })
+    //               .catch((e) => {
+    //                 rej(e);
+    //               });
+    //           } else if (item.toChange && item.ID !== null) {
+    //             await executeAndReturnResult(
+    //               `UPDATE "SRM_GRPO1" SET "BILLQTY"= TRIM('${item.BILLQTY}') , "PRICE" = TRIM('${item.PRICE}') WHERE "ID"= TRIM('${item.ID}')`,
+    //               true,
+    //             )
+    //               .then(() => {
+    //                 count++;
+    //                 if (count == items.length) {
+    //                   res(true);
+    //                 }
+    //               })
+    //               .catch((e) => {
+    //                 rej(e);
+    //               });
+    //           } else if (item.toAdd && item.ID === null) {
+    //             await executeAndReturnResult(
+    //               `INSERT INTO "SRM_GRPO1" ("DOCENTRY","LINENUM","PONO","GRPONO","PODATE","ITEMCODE","SHIPDATE","BILLQTY","PRICE","LINEDOCENTRY",BPLID,APSERIES) VALUES (TRIM('${
+    //                 header.DRAFTNO
+    //               }'),'${item.LINENUM}',TRIM('${item['PONO']}'), TRIM('${
+    //                 item['GRPONO']
+    //               }'),'${moment(item.DocDate, 'DD-MM-YYYY').format(
+    //                 'YYYY-MM-DD',
+    //               )}','${item.ITEMCODE}','${moment(
+    //                 item.SHIPDATE,
+    //                 'DD-MM-YYYY',
+    //               ).format('YYYY-MM-DD')}', TRIM('${item.BILLQTY}'), TRIM('${
+    //                 item.PRICE
+    //               }'),TRIM('${item.LineDOCENTRY}'),TRIM('${
+    //                 item.BRANCH
+    //               }'),TRIM('${item.SERIES}'))`,
+    //               true,
+    //             )
+    //               .then(() => {
+    //                 count++;
+    //                 if (count == items.length) {
+    //                   res(true);
+    //                 }
+    //               })
+    //               .catch((e) => {
+    //                 rej(e);
+    //               });
+    //           } else if (!item.toAdd && !item.toChange && !item.toDelete) {
+    //             count++;
+    //             if (count == items.length) {
+    //               res(true);
+    //             }
+    //           }
+    //         });
+    //       })
+    //         .then(async (res) => {
+    //           if (res) {
+    //             return await new Promise(async (resolve, reject) => {
+    //               if (attachments && Array.isArray(attachments)) {
+    //                 let count = 0;
+    //                 // console.log(attachments, 'Attacments');
+    //                 await attachments.forEach(async (file, index) => {
+    //                   const myFile = JSON.parse(file);
+    //                   // console.log(myFile, ' MY FILE');
+    //                   if (
+    //                     myFile.toDelete &&
+    //                     !String(myFile.ID).includes('null')
+    //                   ) {
+    //                     return await executeAndReturnResult(
+    //                       `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${myFile.ID}')`,
+    //                       true,
+    //                     )
+    //                       .catch((e) => {
+    //                         reject(e);
+    //                       })
+    //                       .then(() => {
+    //                         count++;
+    //                         if (count == attachments.length) {
+    //                           resolve(true);
+    //                         }
+    //                       });
+    //                   } else {
+    //                     count++;
+    //                     if (count == attachments.length) {
+    //                       resolve(true);
+    //                     }
+    //                   }
+    //                 });
+    //               } else {
+    //                 if (
+    //                   attachments.toDelete &&
+    //                   !String(attachments.ID).includes('null')
+    //                 ) {
+    //                   return await executeAndReturnResult(
+    //                     `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${attachments.ID}')`,
+    //                     true,
+    //                   )
+    //                     .catch((e) => {
+    //                       reject(e);
+    //                     })
+    //                     .then(() => {
+    //                       resolve(true);
+    //                     });
+    //                 } else {
+    //                   resolve(true);
+    //                 }
+    //               }
+    //             })
+    //               .then(async () => {
+    //                 console.log('COMMIT ATTACHMENT');
+    //                 await global.connection.commit();
+    //                 return { data: null, message: 'GRPO Updated' };
+    //               })
+    //               .catch((e) => {
+    //                 throw new Error(e.message);
+    //               });
+    //           } else {
+    //             const error: any = new Error('Error updating items');
+    //             error.code = 500;
+    //             throw error;
+    //           }
+    //         })
+    //         .catch((e) => {
+    //           console.log(e);
+    //           throw new HttpException(e.message, 500);
+    //         });
+    //     })
+    //     .catch((e) => {
+    //       console.log(e);
+    //       throw new HttpException(e.message, 500);
+    //     });
+    // }
+    // if (files && files?.length > 0) {
+    //   try {
+    //     const uploadFiles = await this.uploadFiles(files);
+    //     if (uploadFiles) {
+    //       await global.connection.beginTransaction();
+    //       return executeAndReturnResult(
+    //         `UPDATE "SRM_OGRPO" SET "BILLNO"=TRIM('${
+    //           header.BILLNO
+    //         }'),"BILLDATE"='${moment(header.BILLDATE, 'DD-MM-YYYY').format(
+    //           'YYYY-MM-DD',
+    //         )}' WHERE "DOCENTRY"= TRIM('${header.DRAFTNO}')`,
+    //         true,
+    //       )
+    //         .then(async () => {
+    //           return await new Promise(async (res, rej) => {
+    //             let count = 0;
+    //             console.log(items);
+    //             await items.forEach(async (item) => {
+    //               if (item.toDelete && item.ID !== null) {
+    //                 await executeAndReturnResult(
+    //                   `DELETE FROM "SRM_GRPO1" WHERE "ID"= TRIM('${item.ID}')`,
+    //                   true,
+    //                 )
+    //                   .then(() => {
+    //                     count++;
+    //                     if (count == items.length) {
+    //                       res(true);
+    //                     }
+    //                   })
+    //                   .catch((e) => {
+    //                     rej(e);
+    //                   });
+    //               } else if (item.toChange && item.ID !== null) {
+    //                 await executeAndReturnResult(
+    //                   `UPDATE "SRM_GRPO1" SET "BILLQTY"= TRIM('${item.BillQty}') AND "PRICE" = TRIM('${item.Price}') WHERE "ID"= TRIM('${item.ID}')`,
+    //                   true,
+    //                 )
+    //                   .then(() => {
+    //                     count++;
+    //                     if (count == items.length) {
+    //                       res(true);
+    //                     }
+    //                   })
+    //                   .catch((e) => {
+    //                     rej(e);
+    //                   });
+    //               } else if (item.toAdd && item.ID === null) {
+    //                 await executeAndReturnResult(
+    //                   `INSERT INTO "SRM_GRPO1" ("DOCENTRY","LINENUM","PONO","GRPONO","PODATE","ITEMCODE","SHIPDATE","BILLQTY","PRICE","LINEDOCENTRY","BPLID","APSERIES") VALUES (TRIM('${
+    //                     header.DRAFTNO
+    //                   }'),TRIM('${item.LineNum}'),TRIM('${
+    //                     item['PO#']
+    //                   }'),TRIM('${item['GRPO#']}'),'${moment(
+    //                     item.DocDate,
+    //                     'DD-MM-YYYY',
+    //                   ).format('YYYY-MM-DD')}','${item.ItemCode}','${moment(
+    //                     item.ShipDate,
+    //                     'DD-MM-YYYY',
+    //                   ).format('YYYY-MM-DD')}',TRIM('${item.BillQty}'),TRIM('${
+    //                     item.PRICE
+    //                   }'),TRIM('${item.LineDOCENTRY}'),TRIM('${
+    //                     item.BranchID
+    //                   }'),TRIM('${item.Series}'))`,
+    //                   true,
+    //                 )
+    //                   .then(() => {
+    //                     count++;
+    //                     if (count == items.length) {
+    //                       res(true);
+    //                     }
+    //                   })
+    //                   .catch((e) => {
+    //                     console.log(e);
+    //                     rej(e);
+    //                   });
+    //               } else if (!item.toAdd && !item.toChange && !item.toDelete) {
+    //                 count++;
+    //                 if (count == items.length) {
+    //                   res(true);
+    //                 }
+    //               }
+    //             });
+    //           })
+    //             .then(async (res) => {
+    //               if (res) {
+    //                 return await new Promise(async (resolve, reject) => {
+    //                   let count = 0;
+    //                   console.log(attachments, ' :1575');
+    //                   if (attachments && Array.isArray(attachments)) {
+    //                     await attachments.forEach(async (file, index) => {
+    //                       const myFile = JSON.parse(file);
+    //                       if (
+    //                         myFile.toDelete &&
+    //                         !String(myFile.ID).includes('null')
+    //                       ) {
+    //                         await executeAndReturnResult(
+    //                           `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${myFile.ID}')`,
+    //                           true,
+    //                         )
+    //                           .catch((e) => {
+    //                             console.log(e, ' :1588');
+    //                             reject(e);
+    //                           })
+    //                           .then(() => {
+    //                             count++;
+    //                             if (count == attachments.length) {
+    //                               resolve(true);
+    //                             }
+    //                           });
+    //                       } else {
+    //                         console.log('inside not delete : 1598');
+    //                         count++;
+    //                         if (count == attachments.length) {
+    //                           resolve(true);
+    //                         }
+    //                       }
+    //                     });
+    //                   } else {
+    //                     if (
+    //                       attachments.toDelete &&
+    //                       !String(attachments.ID).includes('null')
+    //                     ) {
+    //                       return await executeAndReturnResult(
+    //                         `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${attachments.ID}')`,
+    //                         true,
+    //                       )
+    //                         .catch((e) => {
+    //                           console.log(e, ' :1614');
+    //                           reject(e);
+    //                         })
+    //                         .then(() => {
+    //                           resolve(true);
+    //                         });
+    //                     } else {
+    //                       resolve(true);
+    //                     }
+    //                   }
+    //                 })
+    //                   .then(async () => {
+    //                     return await new Promise(async (resolve, reject) => {
+    //                       let count = 0;
+    //                       await files.map(async (file, index) => {
+    //                         await executeAndReturnResult(
+    //                           `INSERT INTO SRM_GRPO2 (DOCENTRY, ATTACHMENTNAME, LINK) VALUES ( TRIM('${
+    //                             header.DRAFTNO
+    //                           }'), '${file.originalname}', '${
+    //                             true
+    //                               ? process.env.SHARE_FOLDER_PATH
+    //                               : '\\\\192.168.5.191\\Backup\\ZAINWEBSITETESTING\\SRM\\attachments\\'
+    //                           }');`,
+    //                           true,
+    //                         )
+    //                           .then(() => {
+    //                             count++;
+    //                             if (count == files.length) {
+    //                               resolve(true);
+    //                             }
+    //                           })
+    //                           .catch((e) => {
+    //                             console.log(e, ' :1646');
+    //                             reject(e);
+    //                           });
+    //                       });
+    //                     }).then(async () => {
+    //                       console.log('comitted');
+    //                       await global.connection.commit();
+    //                       return { data: null, message: 'GRPO Updated' };
+    //                     });
+    //                   })
+    //                   .catch(async (e) => {
+    //                     await global.connection.rollback();
+    //                     console.log(e, ' :1656');
+    //                     throw new Error(e.message);
+    //                   });
+    //               } else {
+    //                 await global.connection.rollback();
+    //                 const error: any = new Error('Error updating items');
+    //                 error.code = 500;
+    //                 throw error;
+    //               }
+    //             })
+    //             .catch(async (e) => {
+    //               console.log(e, ':1671');
+    //               await global.connection.rollback();
+    //               throw new HttpException(e.message, 500);
+    //             });
+    //         })
+    //         .catch(async (e) => {
+    //           await global.connection.rollback();
+    //           console.log(e, ':1676');
+    //           throw new HttpException(e.message, 500);
+    //         });
+    //     } else {
+    //       throw new HttpException('Files not uploaded', 500);
+    //     }
+    //   } catch (e) {
+    //     throw new Error(e.message);
+    //   }
+    // } else {
+    //   await global.connection.beginTransaction();
+    //   return executeAndReturnResult(
+    //     `UPDATE "SRM_OGRPO" SET "BILLNO"= TRIM('${
+    //       header.BILLNO
+    //     }'),"BILLDATE"='${moment(header.BILLDATE, 'DD-MM-YYYY').format(
+    //       'YYYY-MM-DD',
+    //     )}' WHERE "DOCENTRY"= TRIM('${header.DRAFTNO}')`,
+    //     true,
+    //   )
+    //     .then(async () => {
+    //       return await new Promise(async (res, rej) => {
+    //         let count = 0;
+    //         await items.forEach(async (item) => {
+    //           if (item.toDelete && item.ID !== null) {
+    //             await executeAndReturnResult(
+    //               `DELETE FROM "SRM_GRPO1" WHERE "ID"= TRIM('${item.ID}')`,
+    //               true,
+    //             )
+    //               .then(() => {
+    //                 count++;
+    //                 if (count == items.length) {
+    //                   res(true);
+    //                 }
+    //               })
+    //               .catch((e) => {
+    //                 rej(e);
+    //               });
+    //           } else if (item.toChange && item.ID !== null) {
+    //             await executeAndReturnResult(
+    //               `UPDATE "SRM_GRPO1" SET "BILLQTY"= TRIM('${item.BillQty}') , "PRICE" = TRIM('${item.Price}') WHERE "ID"= TRIM('${item.ID}')`,
+    //               true,
+    //             )
+    //               .then(() => {
+    //                 count++;
+    //                 if (count == items.length) {
+    //                   res(true);
+    //                 }
+    //               })
+    //               .catch((e) => {
+    //                 rej(e);
+    //               });
+    //           } else if (item.toAdd && item.ID === null) {
+    //             await executeAndReturnResult(
+    //               `INSERT INTO "SRM_GRPO1" ("DOCENTRY","LINENUM","PONO","GRPONO","PODATE","ITEMCODE","SHIPDATE","BILLQTY","PRICE","LINEDOCENTRY",BPLID,APSERIES) VALUES (TRIM('${
+    //                 header.DRAFTNO
+    //               }'),'${item.LineNum}',TRIM('${item['PO#']}'), TRIM('${
+    //                 item['GRPO#']
+    //               }'),'${moment(item.DocDate, 'DD-MM-YYYY').format(
+    //                 'YYYY-MM-DD',
+    //               )}','${item.ItemCode}','${moment(
+    //                 item.ShipDate,
+    //                 'DD-MM-YYYY',
+    //               ).format('YYYY-MM-DD')}', TRIM('${item.BillQty}'), TRIM('${
+    //                 item.PRICE
+    //               }'),TRIM('${item.LineDOCENTRY}'),TRIM('${
+    //                 item.BranchID
+    //               }'),TRIM('${item.Series}'))`,
+    //               true,
+    //             )
+    //               .then(() => {
+    //                 count++;
+    //                 if (count == items.length) {
+    //                   res(true);
+    //                 }
+    //               })
+    //               .catch((e) => {
+    //                 rej(e);
+    //               });
+    //           } else if (!item.toAdd && !item.toChange && !item.toDelete) {
+    //             count++;
+    //             if (count == items.length) {
+    //               res(true);
+    //             }
+    //           }
+    //         });
+    //       })
+    //         .then(async (res) => {
+    //           if (res) {
+    //             return await new Promise(async (resolve, reject) => {
+    //               if (attachments && Array.isArray(attachments)) {
+    //                 let count = 0;
+    //                 // console.log(attachments, 'Attacments');
+    //                 await attachments.forEach(async (file, index) => {
+    //                   const myFile = JSON.parse(file);
+    //                   // console.log(myFile, ' MY FILE');
+    //                   if (
+    //                     myFile.toDelete &&
+    //                     !String(myFile.ID).includes('null')
+    //                   ) {
+    //                     return await executeAndReturnResult(
+    //                       `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${myFile.ID}')`,
+    //                       true,
+    //                     )
+    //                       .catch((e) => {
+    //                         reject(e);
+    //                       })
+    //                       .then(() => {
+    //                         count++;
+    //                         if (count == attachments.length) {
+    //                           resolve(true);
+    //                         }
+    //                       });
+    //                   } else {
+    //                     count++;
+    //                     if (count == attachments.length) {
+    //                       resolve(true);
+    //                     }
+    //                   }
+    //                 });
+    //               } else {
+    //                 if (
+    //                   attachments.toDelete &&
+    //                   !String(attachments.ID).includes('null')
+    //                 ) {
+    //                   return await executeAndReturnResult(
+    //                     `DELETE FROM "SRM_GRPO2" WHERE "ID"= TRIM('${attachments.ID}')`,
+    //                     true,
+    //                   )
+    //                     .catch((e) => {
+    //                       reject(e);
+    //                     })
+    //                     .then(() => {
+    //                       resolve(true);
+    //                     });
+    //                 } else {
+    //                   resolve(true);
+    //                 }
+    //               }
+    //             })
+    //               .then(async () => {
+    //                 await global.connection.commit();
+    //                 return { data: null, message: 'GRPO Updated' };
+    //               })
+    //               .catch((e) => {
+    //                 throw new Error(e.message);
+    //               });
+    //           } else {
+    //             const error: any = new Error('Error updating items');
+    //             error.code = 500;
+    //             throw error;
+    //           }
+    //         })
+    //         .catch((e) => {
+    //           console.log(e);
+    //           throw new HttpException(e.message, 500);
+    //         });
+    //     })
+    //     .catch((e) => {
+    //       console.log(e);
+    //       throw new HttpException(e.message, 500);
+    //     });
+    // }
+  }
   // async saveGrpoAsDraft(
   //   user: UserDashboard,
   //   files: Express.Multer.File[],
@@ -3008,6 +3938,35 @@ export class GrpoService {
   //     throw new HttpException(e.message, 500);
   //   }
   // }
+  async updateGrpoAndGenerateInvoiceV2(user, files, body) {
+    try {
+      const saveGrpoAsDraft = await this.updateGrpo(user, files, body).catch(
+        (e) => {
+          throw new Error(e.message);
+        },
+      );
+      const header = JSON.parse(body.header);
+      if (saveGrpoAsDraft) {
+        await executeAndReturnResult(
+          `
+          UPDATE "SRM_OGRPO" SET "STATUS" = 'completed' WHERE "DOCENTRY" = TRIM('${header.DRAFTNO}');
+        `,
+          true,
+        ).catch((e) => {
+          console.log(e);
+        });
+        // setTimeout(async () => {
+        //   await this.createSAPDraftInvoiceFromDocNo(
+        //     body.header.VENDORCODE,
+        //     body.header.DRAFTNO,
+        //   );
+        // }, 200);
+        return { message: 'Invoice Created' };
+      }
+    } catch (e: any) {
+      throw new HttpException(e.message, e.code || 500);
+    }
+  }
   async updateGrpoAndGenerateInvoice(user, files, body) {
     try {
       const saveGrpoAsDraft = await this.updateGrpo(user, files, body).catch(
@@ -3017,103 +3976,289 @@ export class GrpoService {
       );
       const header = JSON.parse(body.header);
       if (saveGrpoAsDraft) {
-        await global.connection.beginTransaction();
+        await global.connection.beginTransaction((err) => {
+          if (err)
+            throw new Error(
+              err?.message || 'Error Createing Transaction: 4030',
+            );
+        });
         const updateStatus = await executeAndReturnResult(
           `UPDATE "SRM_OGRPO" SET "STATUS" = 'completed' WHERE "DOCENTRY" = TRIM('${header.DRAFTNO}');`,
           true,
-        ).catch((e) => {
-          throw new Error(e.message);
-        });
+        )
+          .catch((e) => {
+            throw new Error(e.message);
+          })
+          .then(async (res) => {
+            await global.connection.commit((err) => {
+              if (err) throw new Error(err.message);
+            });
+            return res;
+          });
         if (updateStatus.count !== 0) {
-          const actualDetails = await executeAndReturnResult(`
-          SELECT *, TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS BILLDATE  FROM "SRM_OGRPO" WHERE "DOCENTRY" = TRIM('${header.DRAFTNO}');
-        `);
-          if (actualDetails.count !== 0) {
-            const itemData = await executeAndReturnResult(`
-            SELECT *,T1."DocEntry" AS "GRPOBASE" FROM "SRM_GRPO1" T0
-            LEFT JOIN "OPDN" T1 ON T0."GRPONO" = T1."DocNum"
-            WHERE "DOCENTRY" = TRIM('${header.DRAFTNO}');
-            `);
-            if (itemData.count !== 0) {
-              const attachmentsDetails = await executeAndReturnResult(`
-              SELECT * FROM "SRM_GRPO2" WHERE "DOCENTRY" = TRIM('${header.DRAFTNO}');
-              `);
-              if (attachmentsDetails.count !== 0) {
-                const sapPayload = {
-                  TaxDate: moment(
-                    actualDetails[0].BILLDATE,
-                    'DD-MM-YYYY',
-                  ).format('DD-MM-YYYY'),
-                  CardCode: actualDetails[0].VENDORCODE,
-                  DocObjectCode: 'oPurchaseInvoices',
-                  BPL_IDAssignedToInvoice: actualDetails[0].BPLID,
-                  NumAtCard: actualDetails[0].BILLNO,
-                  DocumentLines: itemData.map((item, index) => {
-                    return {
-                      LineNum: index,
-                      ItemCode: item.ITEMCODE,
-                      Quantity: item.BILLQTY,
-                      BaseType: 20,
-                      BaseEntry: item.GRPOBASE,
-                      BaseLine: item.LINENUM,
-                    };
-                  }),
-                };
-                console.log(sapPayload, ' SAP PAYLOAD');
-                const sapResponse = await this.generateMyInvoice(
-                  sapPayload,
-                  attachmentsDetails.map((file) => ({
-                    originalname: file.ATTACHMENTNAME,
-                  })) as any,
-                ).catch((e) => {
-                  throw new Error(e.message);
-                });
-                if (sapResponse) {
-                  const { DocEntry: SuccessDocEntry } = sapResponse;
-                  // Update SRM_GRPO DRAFTID
-                  await global.connection.beginTransaction();
-                  await executeAndReturnResult(
-                    `UPDATE SRM_OGRPO SET DRAFTID= TRIM('${SuccessDocEntry}') WHERE DOCENTRY= TRIM('${header.DRAFTNO}');`,
-                    true,
-                  ).then(async () => {
-                    await global.connection.commit();
-                  });
-
-                  return { message: 'GRPO And Invoice Created', data: null };
-                } else {
-                  const error: any = new Error('Error Creating Invoice');
-                  error.code = 500;
-                  throw error;
-                }
-              } else {
-                const error: any = new Error('No Attachments Found');
-                error.code = 404;
-                throw error;
-              }
-            } else {
-              const error: any = new Error('No Items Found');
-              error.code = 404;
-              throw error;
-            }
-          } else {
-            const error: any = new Error('No GRPO Found');
-            error.code = 404;
-            throw error;
-          }
+          setTimeout(async () => {
+            await this.createSAPDraftInvoiceFromDocNo(header.DRAFTNO);
+          }, 200);
+          return { message: 'Invoice Created' };
+        } else {
+          throw new Error('Error Creating Invoice');
         }
-      } else {
-        const error: any = new Error('Error Updating GRPO');
-        error.code = 500;
-        throw error;
       }
     } catch (e: any) {
       throw new HttpException(e.message, e.code || 500);
     }
   }
+  async createSAPDraftInvoiceFromDocNo(docNo) {
+    try {
+      const headerDetails = await executeAndReturnResult(`
+        SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'YYYY-MM-DD') AS "BILLDATE","VENDORCODE","STATUS", TO_VARCHAR(TO_DATE("CREATEDAT"),'YYYY-MM-DD') AS "CREATEDAT" FROM "SRM_OGRPO" WHERE "DOCENTRY"  = TRIM('${docNo}');
+      `);
+      if (headerDetails.count !== 0) {
+        const childDetails = await executeAndReturnResult(`
+          SELECT "ID","BPLID","APSERIES" AS "SERIES", "DOCENTRY","LINEDOCENTRY","LINENUM", "PONO","GRPONO", TO_VARCHAR(TO_DATE("PODATE"),'YYYY-MM-DD') AS "PODATE", "ITEMCODE", "DRAFTID",TO_VARCHAR(TO_DATE("SHIPDATE"),'YYYY-MM-DD') AS "SHIPDATE", "BILLQTY","PRICE", TO_VARCHAR(TO_DATE("CREATEDAT"),'YYYY-MM-DD') AS "CREATEDAT" FROM "SRM_GRPO1" WHERE "DRAFTID" IS NULL AND "DOCENTRY" = TRIM('${docNo}'); 
+        `);
+        const attachments = await executeAndReturnResult(`
+          SELECT "ID", "DOCENTRY","ATTACHMENTNAME" AS "NAME" , "LINK", TO_VARCHAR(TO_DATE("CREATEDAT"),'YYYY-MM-DD') AS "CREATEDAT" FROM "SRM_GRPO2" WHERE "DOCENTRY" = TRIM('${docNo}');
+        `);
+        const groupedData = {};
+        childDetails.forEach((i) => {
+          if (!groupedData[i.BPLID]) {
+            groupedData[i.BPLID] = [];
+          }
+          groupedData[i.BPLID].push(i);
+        });
+        console.log(groupedData);
+        console.log(headerDetails[0]);
+        const sapHeader = {
+          // TaxDate: moment(BILLDATE, 'YYYY-MM-DD').format('DD-MM-YYYY'),
+          TaxDate: headerDetails[0]['BILLDATE'],
+          CardCode: headerDetails[0]['VENDORCODE'],
+          DocObjectCode: 'oPurchaseInvoices',
+          BPL_IDAssignedToInvoice: '',
+          Series: 'SRM',
+          NumAtCard: headerDetails[0]['BILLNO'],
+        };
+        const payload = Object.keys(groupedData).map((i) => {
+          return {
+            ...sapHeader,
+            BPL_IDAssignedToInvoice: i,
+            Series: groupedData[i][0]['SERIES'],
+            // CardCode: groupedData[i][0]['VENDOR'],
+            DocumentLines: groupedData[i].map((item, index) => {
+              return {
+                LineNum: index,
+                ItemCode: item.ITEMCODE,
+                Quantity: item.BILLQTY,
+                BaseType: 20,
+                BaseLine: item.LINENUM,
+                BaseEntry: item.LINEDOCENTRY,
+              };
+            }),
+          };
+        });
+        const SAPAttachmentLines =
+          attachments.count > 1
+            ? attachments
+            : attachments.count === 1
+            ? [attachments[0]]
+            : null;
+        await payload.forEach(async (invoice) => {
+          const result: SAPDRAFTSUCCESS = await this.generateMyInvoice(
+            invoice,
+            SAPAttachmentLines.map((file) => {
+              return { ...file, originalname: file.NAME };
+            }),
+          );
+          if (result) {
+            const { DocEntry: SuccessDocEntry } = result;
+            await global.connection.beginTransaction((err) => {
+              if (err) {
+                console.log(
+                  'ERROR IN CREATING TRANSACTION: 4054 GRPOSERVICE',
+                  err.message,
+                );
+              }
+            });
+            await new Promise(async (resolve, reject) => {
+              let count = 0;
+              await invoice.DocumentLines.forEach(async (item) => {
+                await executeAndReturnResult(
+                  `UPDATE SRM_GRPO1 SET DRAFTID = TRIM('${SuccessDocEntry}') WHERE DOCENTRY= TRIM('${docNo}') AND "ITEMCODE" = '${item.ItemCode}' AND "LINENUM" = '${item.BaseLine}' AND "LINEDOCENTRY" = '${item.BaseEntry}';`,
+                  true,
+                )
+                  .then(() => {
+                    count++;
+                    if (count == invoice.DocumentLines.length) {
+                      resolve(true);
+                    }
+                  })
+                  .catch(async (e) => {
+                    await global.connection.rollback();
+                    reject(e);
+                  });
+              });
+            })
+              .then(async () => {
+                await global.connection.commit();
+              })
+              .catch((e) => {
+                console.error(
+                  `ERROR IN CREATE AND GEN INVOICE: ${moment().format(
+                    'YYYY-MM-DD HH:mm:ss',
+                  )}`,
+                  e,
+                );
+                console.log(e);
+              });
+          }
+        });
+
+        // SAPAttachmentLines = SAPAttachmentLines?.map((file) => {
+        //   const getExtension = (str) => str.slice(str.lastIndexOf('.'));
+        //   const getName = (str) => str.slice(0, str.lastIndexOf('.'));
+        //   return {
+        //     FileExtension: getExtension(file.NAME).slice(1),
+        //     FileName: getName(file.NAME),
+        //     SourcePath: true
+        //       ? '\\\\192.168.5.182\\SAP-Share\\'
+        //       : '\\\\192.168.5.191\\Backup\\ZAINWEBSITETESTING\\SRM\\attachments',
+        //     // UserID: '1',
+        //   };
+        // });
+        // const finalPayload = payload.map((i) => {
+        //   return { ...i, Attachments2_Lines: SAPAttachmentLines };
+        // });
+        // const attachmentABS = await this.sapSercice
+        //   .addAttachments(
+        //     SAPAttachmentLines.map((file) => {
+        //       return { ...file, originalname: file.NAME };
+        //     }),
+        //   )
+        //   .catch((e) => {
+        //     throw new Error(e.message);
+        //   });
+      } else {
+        throw new Error('No pending items were found');
+      }
+    } catch (e) {
+      throw new Error(e.message);
+    }
+
+    // try {
+    //   await global.connection.beginTransaction();
+    //   const updateStatus = await executeAndReturnResult(
+    //     `UPDATE "SRM_OGRPO" SET "STATUS" = 'completed' WHERE "DOCENTRY" = TRIM('${docNo}');`,
+    //     true,
+    //   ).catch((e) => {
+    //     throw new Error(e.message);
+    //   });
+    //   if (updateStatus.count !== 0) {
+    //     const actualDetails = await executeAndReturnResult(`
+    //       SELECT *, TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS BILLDATE  FROM "SRM_OGRPO" WHERE "DOCENTRY" = TRIM('${docNo}');
+    //     `);
+    //     if (actualDetails.count !== 0) {
+    //       const itemData = await executeAndReturnResult(`
+    //         SELECT *,T1."DocEntry" AS "GRPOBASE" FROM "SRM_GRPO1" T0
+    //         LEFT JOIN "OPDN" T1 ON T0."GRPONO" = T1."DocNum"
+    //         WHERE "DOCENTRY" = TRIM('${docNo}');
+    //         `);
+    //       if (itemData.count !== 0) {
+    //         const attachmentsDetails = await executeAndReturnResult(`
+    //           SELECT * FROM "SRM_GRPO2" WHERE "DOCENTRY" = TRIM('${docNo}');
+    //           `);
+    //         if (attachmentsDetails.count !== 0) {
+    //           const body = {
+    //             BILLNO: actualDetails[0]['BILLNO'],
+    //             BILLDATE: actualDetails[0]['BILLDATE'],
+    //             ITEMS: itemData[0].map((i) => {
+    //               return {
+    //                 ...i,
+    //                 BPLID: i.BPLID,
+    //                 SERIES: i.APSERIES,
+    //                 VENDOR: actualDetails[0]['VENDORCODE'],
+    //                 ITEMCODE: i.ITEMCODE,
+    //                 BILLQTY: i.BILLQTY,
+    //                 LineNum: i.LINENUM,
+    //                 LINEDOCENTRY: i.LINEDOCENTRY,
+    //               };
+    //             }),
+    //           };
+    //           const sapPayload = await this.createAllInOneInvoice(body);
+    //           // const sapPayload = {
+    //           //   TaxDate: moment(actualDetails[0].BILLDATE, 'DD-MM-YYYY').format(
+    //           //     'DD-MM-YYYY',
+    //           //   ),
+    //           //   CardCode: actualDetails[0].VENDORCODE,
+    //           //   DocObjectCode: 'oPurchaseInvoices',
+    //           //   BPL_IDAssignedToInvoice: actualDetails[0].BPLID,
+    //           //   NumAtCard: actualDetails[0].BILLNO,
+    //           //   DocumentLines: itemData.map((item, index) => {
+    //           //     return {
+    //           //       LineNum: index,
+    //           //       ItemCode: item.ITEMCODE,
+    //           //       Quantity: item.BILLQTY,
+    //           //       BaseType: 20,
+    //           //       BaseEntry: item.GRPOBASE,
+    //           //       BaseLine: item.LINENUM,
+    //           //     };
+    //           //   }),
+    //           // };
+    //           console.log(sapPayload, ' SAP PAYLOAD');
+    //           // const sapResponse = await this.generateMyInvoice(
+    //           //   sapPayload,
+    //           //   attachmentsDetails.map((file) => ({
+    //           //     originalname: file.ATTACHMENTNAME,
+    //           //   })) as any,
+    //           // )
+    //           sapPayload.forEach(async (i) => {
+    //             const result: SAPDRAFTSUCCESS = await this.generateMyInvoice(
+    //               i as any,
+    //               attachmentsDetails[0],
+    //             );
+    //           });
+    //           // if (sapResponse) {
+    //           //   const { DocEntry: SuccessDocEntry } = sapResponse;
+    //           //   // Update SRM_GRPO DRAFTID
+    //           //   await global.connection.beginTransaction();
+    //           //   await executeAndReturnResult(
+    //           //     `UPDATE SRM_OGRPO SET DRAFTID= TRIM('${SuccessDocEntry}') WHERE DOCENTRY= TRIM('${docNo}');`,
+    //           //     true,
+    //           //   ).then(async () => {
+    //           //     await global.connection.commit();
+    //           //   });
+
+    //           //   return { message: 'GRPO And Invoice Created', data: null };
+    //           // } else {
+    //           //   const error: any = new Error('Error Creating Invoice');
+    //           //   error.code = 500;
+    //           //   throw error;
+    //           // }
+    //         } else {
+    //           const error: any = new Error('No Attachments Found');
+    //           error.code = 404;
+    //           throw error;
+    //         }
+    //       } else {
+    //         const error: any = new Error('No Items Found');
+    //         error.code = 404;
+    //         throw error;
+    //       }
+    //     } else {
+    //       const error: any = new Error('No GRPO Found');
+    //       error.code = 404;
+    //       throw error;
+    //     }
+    //   }
+    // } catch (e) {
+    //   throw new HttpException(e.message, 500);
+    // }
+  }
   async deleteGrpo(id: string) {
     try {
-      // console.log('INSIDE DELETE', id);
-      await global.connection.beginTransaction();
+      console.log('INSIDE DELETE', id);
+      await global.connection.beginTransaction((err) => {
+        if (err) throw new Error(err.message);
+      });
 
       const deleteItems = await executeAndReturnResult(
         `
@@ -3121,14 +4266,37 @@ export class GrpoService {
         `,
         true,
       );
+      const attachmentCount = await executeAndReturnResult(
+        `SELECT * FROM "SRM_GRPO2" WHERE "DOCENTRY" = TRIM('${id}') `,
+      );
       if (deleteItems.count != 0) {
-        const deleteAttachments = await executeAndReturnResult(
-          `
-          DELETE FROM "SRM_GRPO2" WHERE "DOCENTRY" = TRIM('${id}');
-          `,
-          true,
-        );
-        if (deleteAttachments.count != 0) {
+        if (attachmentCount.count !== 0) {
+          const deleteAttachments = await executeAndReturnResult(
+            `DELETE FROM "SRM_GRPO2" WHERE "DOCENTRY" = TRIM('${id}');
+            `,
+            true,
+          );
+          if (deleteAttachments.count !== 0) {
+            const result = await executeAndReturnResult(
+              `
+              DELETE FROM "SRM_OGRPO" WHERE "DOCENTRY" = TRIM('${id}');
+              `,
+              true,
+            );
+            if (result.count !== 0) {
+              await global.connection.commit();
+              return { data: null, message: 'GRPO Deleted' };
+            } else {
+              const error: any = new Error('Error Deleting GRPO');
+              error.code = 500;
+              throw error;
+            }
+          } else {
+            const error: any = new Error('Error Deleting Attachments');
+            error.code = 500;
+            throw error;
+          }
+        } else {
           const result = await executeAndReturnResult(
             `
             DELETE FROM "SRM_OGRPO" WHERE "DOCENTRY" = TRIM('${id}');
@@ -3143,10 +4311,6 @@ export class GrpoService {
             error.code = 500;
             throw error;
           }
-        } else {
-          const error: any = new Error('Error Deleting Attachments');
-          error.code = 500;
-          throw error;
         }
       } else {
         const error: any = new Error('Error Deleting Items');
@@ -3161,6 +4325,7 @@ export class GrpoService {
     const { BPLId, BILLNO, BILLDATE, ITEMS } = body;
     // console.log(body);
     const items: Array<any> = JSON.parse(ITEMS);
+    console.log(BILLDATE, ' BILLDATE IN ALLin1');
     const sapHeader = {
       // TaxDate: moment(BILLDATE, 'YYYY-MM-DD').format('DD-MM-YYYY'),
       TaxDate: BILLDATE,
@@ -3200,5 +4365,31 @@ export class GrpoService {
     // console.log(groupedData);
     // console.log(payload, ' Payload');
     return payload;
+  }
+  async generateInvoiceFromDraftDocNo(docNo: number) {
+    try {
+      await global.connection.beginTransaction((err) => {
+        if (err) throw new Error(err.message);
+      });
+      const result = await executeAndReturnResult(
+        `UPDATE "SRM_OGRPO" SET "STATUS" = 'completed' WHERE "DOCENTRY" = TRIM('${docNo}')
+      `,
+        true,
+      );
+      console.log(result);
+      if (result.count !== 0) {
+        await global.connection.commit((err) => {
+          if (err) throw new Error(err.message);
+        });
+        setTimeout(async () => {
+          await this.createSAPDraftInvoiceFromDocNo(docNo);
+        }, 100);
+        return { message: 'Invoice Created', data: null };
+      } else {
+        throw new Error('No Draft Found Against this Document');
+      }
+    } catch (e) {
+      throw new HttpException('Error Creating GRPO Invoice', 500);
+    }
   }
 }
