@@ -68,11 +68,11 @@ export function NewUserEmail(Name: string, password: string, email: string) {
         </div>
         <div class="header">
           Hello <b style="color: #146aa2">${Name}</b>, <br />SAPPHIRE Denim has
-          invited you to use the <b>SAPPHIRE Denim Invoice Portal.</b>
-        </div>
-        <a href="http://192.168.5.252:3000/" class="link"
+          invited you to use the  <a href="http://invportal.dfl.com.pk:3001/" class="link"
           >Sapphire Diamond Denim Portal</a
         >
+        </div>
+       
         <div style="margin: 10px 0px">
           <div>
             <span><b>Email:</b></span>
@@ -173,7 +173,7 @@ export function OTPEmail(Name: string, otp: string, email: string) {
           not work, you can use this login verification link:
           <br />
           <a
-            href="http://192.168.5.252:3000/new-password?email=${email}"
+            href="http://invportal.dfl.com.pk:3001/new-password?email=${email}"
             class="link"
             >Enter Code Here</a
           >

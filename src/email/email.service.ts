@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { error } from 'console';
 import { createTransport, type Transporter } from 'nodemailer';
 import { NewUserEmail, OTPEmail } from './UserEmailTemplates';
 type SendMailOptions = {
@@ -73,7 +72,9 @@ export class EmailService {
     // console.log(template);
     const email = await this.sendEmail(
       // true ? 'zain.haroon@sapphire.com.pk' : credentials.email,
-      'zain.haroon@sapphire.com.pk',
+      process.env.NODE_ENV === 'development'
+        ? 'zain.haroon@sapphire.com.pk'
+        : credentials.email,
       'Welcome to Sapphire Denim',
       '',
       template,
@@ -93,7 +94,9 @@ export class EmailService {
     // console.log(template);
     const email = await this.sendEmail(
       // true ? 'zain.haroon@sapphire.com.pk' : credentials.email,
-      'zain.haroon@sapphire.com.pk',
+      process.env.NODE_ENV === 'development'
+        ? 'zain.haroon@sapphire.com.pk'
+        : credentials.email,
       'Reset Password -  Sapphire Denim Portal',
       '',
       template,

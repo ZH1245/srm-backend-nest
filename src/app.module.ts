@@ -21,6 +21,9 @@ import { SapModule } from './sap/sap.module';
 import { EmailService } from './email/email.service';
 import { EmailModule } from './email/email.module';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
+import { CronjobsService } from './cronjobs/cronjobs.service';
+import { CronjobsModule } from './cronjobs/cronjobs.module';
 @Module({
   imports: [
     ThrottlerModule.forRoot([
@@ -29,6 +32,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
         limit: 10,
       },
     ]),
+    ScheduleModule.forRoot(),
     UserModule,
     AuthModule,
     ConfigModule.forRoot({}),
@@ -36,6 +40,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     GrpoModule,
     SapModule,
     EmailModule,
+    CronjobsModule,
   ],
   controllers: [
     AppController,
@@ -52,6 +57,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
     GrpoService,
     SapService,
     EmailService,
+    CronjobsService,
   ],
 })
 export class AppModule {

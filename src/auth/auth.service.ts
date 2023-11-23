@@ -30,7 +30,9 @@ export class AuthService {
           }
         > = await executeAndReturnResult(
           `Select * FROM "SRMUSERS" WHERE "EMAIL" = TRIM('${body.EMAIL.trim()}');`,
-        );
+        ).catch((e) => {
+          throw e;
+        });
 
         // let existingUserCommand = await global.connection.createStatement();
         // await existingUserCommand.prepare(

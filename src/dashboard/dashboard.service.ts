@@ -89,7 +89,7 @@ export class DashboardService {
                     SELECT d."GRPONO", d."ITEMCODE",SUM(d."BILLQTY")"BillQty",d."LINENUM"
                     FROM "SRM_OGRPO" m 
                     INNER JOIN "SRM_GRPO1" d ON m."DOCENTRY" = d."DOCENTRY" 
-                    WHERE "VENDORCODE" = TRIM('${authUser.CODE}') AND m."STATUS" = 'ready'  --AND "BILLNO" = GP."U_DANo"
+                    WHERE "VENDORCODE" = TRIM('${authUser.CODE}') --AND m."STATUS" = 'ready'  --AND "BILLNO" = GP."U_DANo"
                     GROUP BY  d."GRPONO", d."ITEMCODE",d."LINENUM"
                     )a ON a."GRPONO" = P."DocNum" AND a."ITEMCODE" = P1."ItemCode" AND a."LINENUM" = P1."LineNum" 
                     LEFT JOIN NNM1 S ON S."Series" = P."Series"  

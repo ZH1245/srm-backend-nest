@@ -757,7 +757,7 @@
     lodash "4.17.21"
     uuid "9.0.0"
 
-"@nestjs/core@^10.0.0", "@nestjs/core@^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0":
+"@nestjs/core@^10.0.0", "@nestjs/core@^7.0.0 || ^8.0.0 || ^9.0.0 || ^10.0.0", "@nestjs/core@^8.0.0 || ^9.0.0 || ^10.0.0":
   version "10.2.6"
   resolved "https://registry.npmjs.org/@nestjs/core/-/core-10.2.6.tgz"
   integrity sha512-oGQ2CoBeFRT7egG47MFqS89xlXBTIRZBkRpKRTPMftEfL1RMXhXIcIIaGfzp11wx6qxrBVxBXpVLM09oaqHpaQ==
@@ -787,6 +787,14 @@
     express "4.18.2"
     multer "1.4.4-lts.1"
     tslib "2.6.2"
+
+"@nestjs/schedule@^4.0.0":
+  version "4.0.0"
+  resolved "https://registry.npmjs.org/@nestjs/schedule/-/schedule-4.0.0.tgz"
+  integrity sha512-zz4h54m/F/1qyQKvMJCRphmuwGqJltDAkFxUXCVqJBXEs5kbPt93Pza3heCQOcMH22MZNhGlc9DmDMLXVHmgVQ==
+  dependencies:
+    cron "3.1.3"
+    uuid "9.0.1"
 
 "@nestjs/schematics@^10.0.0", "@nestjs/schematics@^10.0.1":
   version "10.0.2"
@@ -957,6 +965,13 @@
   resolved "https://registry.npmjs.org/@types/cookiejar/-/cookiejar-2.1.2.tgz"
   integrity sha512-t73xJJrvdTjXrn4jLS9VSGRbz0nUY3cl2DMGDU48lKl+HR9dbbjW2A9r3g40VA++mQpy6uuHg33gy7du2BKpog==
 
+"@types/cron@^2.4.0":
+  version "2.4.0"
+  resolved "https://registry.npmjs.org/@types/cron/-/cron-2.4.0.tgz"
+  integrity sha512-5bBaAkqvSFBX8JMi/xCofNzG5E594TNsApMz68dLd/sQYz/HGQqgcxGHTRjOvD4G3Y+YF1Oo3S7QdCvKt1KAJQ==
+  dependencies:
+    cron "*"
+
 "@types/eslint-scope@^3.7.3":
   version "3.7.5"
   resolved "https://registry.npmjs.org/@types/eslint-scope/-/eslint-scope-3.7.5.tgz"
@@ -1055,6 +1070,11 @@
   integrity sha512-drE6uz7QBKq1fYqqoFKTDRdFCPHd5TCub75BM+D+cMx7NU9hUz7SESLfC2fSCXVFMO5Yj8sOWHuGqPgjc+fz0Q==
   dependencies:
     "@types/node" "*"
+
+"@types/luxon@~3.3.0":
+  version "3.3.4"
+  resolved "https://registry.npmjs.org/@types/luxon/-/luxon-3.3.4.tgz"
+  integrity sha512-H9OXxv4EzJwE75aTPKpiGXJq+y4LFxjpsdgKwSmr503P5DkWc3AG7VAFYrFNVvqemT5DfgZJV9itYhqBHSGujA==
 
 "@types/mime@*", "@types/mime@^1":
   version "1.3.3"
@@ -2099,6 +2119,14 @@ create-require@^1.1.0:
   version "1.1.1"
   resolved "https://registry.npmjs.org/create-require/-/create-require-1.1.1.tgz"
   integrity sha512-dcKFX3jn0MpIaXjisoRvexIJVEKzaq7z2rZKxf+MSr9TkdmHmsU4m2lcLojrj/FHl8mk5VxMmYA+ftRkP/3oKQ==
+
+cron@*, cron@3.1.3:
+  version "3.1.3"
+  resolved "https://registry.npmjs.org/cron/-/cron-3.1.3.tgz"
+  integrity sha512-KVxeKTKYj2eNzN4ElnT6nRSbjbfhyxR92O/Jdp6SH3pc05CDJws59jBrZWEMQlxevCiE6QUTrXy+Im3vC3oD3A==
+  dependencies:
+    "@types/luxon" "~3.3.0"
+    luxon "~3.4.0"
 
 cross-spawn@^7.0.0, cross-spawn@^7.0.2, cross-spawn@^7.0.3:
   version "7.0.3"
@@ -3843,6 +3871,11 @@ lru-cache@^6.0.0:
   resolved "https://registry.npmjs.org/lru-cache/-/lru-cache-10.0.1.tgz"
   integrity sha512-IJ4uwUTi2qCccrioU6g9g/5rvvVl13bsdczUUcqbciD9iLr095yj8DQKdObriEvuNSx325N1rV1O0sJFszx75g==
 
+luxon@~3.4.0:
+  version "3.4.3"
+  resolved "https://registry.npmjs.org/luxon/-/luxon-3.4.3.tgz"
+  integrity sha512-tFWBiv3h7z+T/tDaoxA8rqTxy1CHV6gHS//QdaH4pulbq/JuBSGgQspQQqcgnwdAx6pNI7cmvz5Sv/addzHmUg==
+
 macos-release@^2.5.0:
   version "2.5.1"
   resolved "https://registry.npmjs.org/macos-release/-/macos-release-2.5.1.tgz"
@@ -5210,6 +5243,11 @@ uuid@9.0.0:
   version "9.0.0"
   resolved "https://registry.npmjs.org/uuid/-/uuid-9.0.0.tgz"
   integrity sha512-MXcSTerfPa4uqyzStbRoTgt5XIe3x5+42+q1sDuy3R5MDk66URdLMOZe5aPX/SQd+kuYAh0FdP/pO28IkQyTeg==
+
+uuid@9.0.1:
+  version "9.0.1"
+  resolved "https://registry.npmjs.org/uuid/-/uuid-9.0.1.tgz"
+  integrity sha512-b+1eJOlsR9K8HJpow9Ok3fiWOWSIcIzXodvv0rQjVoOVNpWMpxf1wZNpt4y9h10odCNrqnYp1OBzRktckBe3sA==
 
 v8-compile-cache-lib@^3.0.1:
   version "3.0.1"

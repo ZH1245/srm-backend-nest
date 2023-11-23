@@ -19,9 +19,18 @@ const db_name = process.env.hana_dbname;
  * The schema for the database.
  */
 // const schema = process.env.hana_schema_development;
-const schema =
-  'CURRENTSCHEMA=TESTDFL' + moment().format('DDMMYYYY').toString() + ';';
-process.env.hana_schema_development = schema;
+const database =
+  process.env.NODE_ENV === 'development'
+    ? // ? 'TESTDFL' + moment().format('DDMMYYYY').toString()
+      'TESTDFLINVOICE16112023'
+    : 'DFL_LIVE';
+process.env.schema =
+  process.env.NODE_ENV === 'development'
+    ? 'CURRENTSCHEMA=' + database + ';'
+    : process.env.hana_schema_production;
+process.env.database = database;
+const schema = process.env.schema;
+// console.log(database, schema);
 /**
  * The username for the database.
  */

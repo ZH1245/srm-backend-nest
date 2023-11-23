@@ -27,7 +27,7 @@ export class AuthController {
   @Post('login')
   @UsePipes(new ValidationPipe({ whitelist: true, stopAtFirstError: true }))
   async login(@Body() body: LoginValidatorDTO, @Res() res: Response) {
-    console.log(body);
+    // console.log(body);
     const result = await this.authService.login(body);
     // res.cookie('auth', result.token, { httpOnly: true, sameSite: 'strict' });
     return res.json(result);

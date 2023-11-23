@@ -132,7 +132,7 @@ export class GrpoService {
           "Quantity" AS "TotalQty",
           
           --IFNULL(P1."OpenQty",P1."Quantity") AS "OpenQty",
-          IFNULL(P1."OpenQty",P1."Quantity") AS "BillQty",
+          (P1."OpenQty" -IFNULL(a."BillQty",0))  AS "BillQty",
           
           GP."U_DANo" AS "Bill#",
           TO_VARCHAR(TO_DATE(P."DocDate"),'DD-MM-YYYY') AS "BillDate",
@@ -286,9 +286,35 @@ export class GrpoService {
         // const items = await executeAndReturnResult(
         //   `SELECT "PONO" AS "PO#","GRPONO" AS "GRPO#","PODATE" AS "PO Date","ITEMCODE" AS "Item Code","ITEMDSC" AS "Item Description","SHIPDATE" AS "Ship Date","BILLQTY" AS "Bill Qty" FROM "SRM_GRPO1" T0 WHERE TO_VARCHAR(T0."DOCENTRY") = TO_VARCHAR(TRIM('${id}'));`,
         // );
+        //   const items = await executeAndReturnResult(
+        //     `SELECT
+        //     "ID",
+        //     "PONO" AS "PO#",
+        //    "GRPONO" AS "GRPO#",
+        //    T1."BPLName" AS "BranchName",
+        //    T1."BPLId" AS "BranchID",
+        //    "APSERIES" AS "Series",
+        //    TO_VARCHAR(TO_DATE("PODATE"),'DD-MM-YYYY') AS "PODate",
+        //    "ITEMCODE" AS "ItemCode",
+        //    --"ITEMDSC" AS "ItemDescription",
+        //    T3."ItemName" AS "ItemDescription",
+        //    TO_VARCHAR( TO_DATE("SHIPDATE"),'DD-MM-YYYY') AS "ShipDate",
+        //    "PRICE" AS "Price",
+        //    "BILLQTY" AS "BillQty" ,
+        //    "LINENUM",
+        //    --CASE WHEN T2."OpenQty" IS NULL THEN IFNULL(T2."OpenQty",0) ELSE T2."OpenQty" - T0."BILLQTY" END AS "AvailQty",
+        //    --T2."OpenQty" AS "AvailQty"
+        //    (T2."OpenQty" -IFNULL(T0."BILLQTY",0))"AvailQty"
+        //  FROM "SRM_GRPO1" T0
+        //  LEFT JOIN "OPDN" T1 ON T1."DocNum"= T0."GRPONO"
+        //  LEFT JOIN "PDN1"  T2 ON T1."DocEntry" = T2."DocEntry" AND T0."LINENUM" = T2."LineNum" AND T0."ITEMCODE" = T2."ItemCode"
+        //  LEFT JOIN "OITM" T3 ON T0."ITEMCODE" = T3."ItemCode"
+        //  WHERE TO_VARCHAR(T0."DOCENTRY") = TO_VARCHAR(TRIM('${id}'))`,
+        //   );
         const items = await executeAndReturnResult(
           `SELECT
           "ID",
+          GP."U_DANo" AS "Bill#",
           "PONO" AS "PO#",
          "GRPONO" AS "GRPO#",
          T1."BPLName" AS "BranchName",
@@ -298,18 +324,22 @@ export class GrpoService {
          "ITEMCODE" AS "ItemCode",
          --"ITEMDSC" AS "ItemDescription",
          T3."ItemName" AS "ItemDescription",
-         TO_VARCHAR( TO_DATE("SHIPDATE"),'DD-MM-YYYY') AS "ShipDate",
          "PRICE" AS "Price",
          "BILLQTY" AS "BillQty" ,
+         TO_VARCHAR( TO_DATE("SHIPDATE"),'DD-MM-YYYY') AS "ShipDate",
          "LINENUM",
-         --CASE WHEN T2."OpenQty" IS NULL THEN IFNULL(T2."OpenQty",0) ELSE T2."OpenQty" - T0."BILLQTY" END AS "AvailQty",
-         --T2."OpenQty" AS "AvailQty"
-         (T2."OpenQty" -IFNULL(T0."BILLQTY",0))"AvailQty"
+         --CASE WHEN T2."OpenQty" IS NULL THEN IFNULL(T2."OpenQty",0) ELSE T2."OpenQty" - T0."BILLQTY" END AS "AvailQty"
+        -- T2."OpenQty" ,--AS "AvailQty"
+         (T2."OpenQty" - IFNULL((SELECT SUM(A."BILLQTY") FROM "SRM_GRPO1" A WHERE A."GRPONO" = T0."GRPONO" AND A."ITEMCODE" = T0."ITEMCODE"),0) )"AvailQty"
+         --IFNULL(T0."BILLQTY",0))"AvailQty"
+         --IFNULL((SELECT SUM(A."BILLQTY") FROM "SRM_GRPO1" A WHERE A."GRPONO" = T0."GRPONO" AND A."ITEMCODE" = T0."ITEMCODE"),0) "RemQty"
        FROM "SRM_GRPO1" T0
        LEFT JOIN "OPDN" T1 ON T1."DocNum"= T0."GRPONO" 
        LEFT JOIN "PDN1"  T2 ON T1."DocEntry" = T2."DocEntry" AND T0."LINENUM" = T2."LineNum" AND T0."ITEMCODE" = T2."ItemCode"
        LEFT JOIN "OITM" T3 ON T0."ITEMCODE" = T3."ItemCode"
-       WHERE TO_VARCHAR(T0."DOCENTRY") = TO_VARCHAR(TRIM('${id}'))`,
+       LEFT JOIN "@OIGP" GP ON T1."U_GPN" = GP."DocNum" 
+       WHERE TO_VARCHAR(T0."DOCENTRY") = TO_VARCHAR(TRIM('${id}'))
+`,
         );
         // const items = await createStatementAndExecute(
         //   `SELECT "DOCENTRY","LINEID","PONO","GRPONO","PODATE","ITEMCODE","ITEMDSC","SHIPDATE","RECEIVEDQTY","BILLQTY" FROM "SRM_GRPO1" T0 WHERE T0."DOCENTRY" = ?`,
@@ -365,7 +395,9 @@ export class GrpoService {
           i."ItemName" AS "Item Name",
           --"ITEMDSC" AS "Item Description",
           (SELECT "BPLName" FROM "OBPL" BP WHERE TO_VARCHAR(BP."BPLId") = TO_VARCHAR(T0."BPLID") ) AS "Branch",
-          TO_VARCHAR(TO_DATE("SHIPDATE"),'DD-MM-YYYY') AS "Ship Date","BILLQTY" AS "Bill Qty" FROM "SRM_GRPO1" T0 
+          TO_VARCHAR(TO_DATE("SHIPDATE"),'DD-MM-YYYY') AS "Ship Date",
+          "BILLQTY" AS "Bill Qty",
+          "PRICE" AS "Price" FROM "SRM_GRPO1" T0 
           LEFT JOIN "OITM" i on T0."ITEMCODE" = i."ItemCode"
           WHERE T0."DOCENTRY" = TRIM('${id}')
           ORDER BY "CREATEDAT" DESC;`,
@@ -1900,6 +1932,8 @@ export class GrpoService {
       //   ...sapPayload,
       //   AttachmentEntry: AbsoluteEntry,
       // });
+      console.log('SAP PAYLOAD');
+      console.log(payload);
       return await axios
         .post(
           'https://sap.dfl.com.pk:50000/b1s/v1/Drafts',
@@ -2093,7 +2127,7 @@ export class GrpoService {
   async getInvoiceDetails(user: UserDashboard, id: string) {
     const result = { header: null, items: null, attachments: null };
     const header = await executeAndReturnResult(
-      `SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE",V."CardName" AS "VENDOR", CASE WHEN "STATUS"='ready' THEN 'Draft' WHEN "STATUS" = 'completed' THEN 'Finalized' END AS "STATUS" ,TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 
+      `SELECT "DOCENTRY" AS "Doc #" ,"BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE",V."CardName" AS "VENDOR", CASE WHEN "STATUS"='ready' THEN 'Draft' WHEN "STATUS" = 'completed' THEN 'Finalized' END AS "STATUS" ,TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" T0 
       INNER JOIN "OCRD" V ON T0."VENDORCODE" = V."CardCode"
       WHERE T0."DOCENTRY" = TRIM('${id}');`,
     );
@@ -2105,7 +2139,8 @@ export class GrpoService {
       result.header = header[0];
       const items = await executeAndReturnResult(
         `SELECT 
-        "DOCENTRY",
+        "DOCENTRY" AS "Doc #",
+        "DRAFTID",
         "PONO",
         "GRPONO",
         TO_VARCHAR(TO_DATE("PODATE"),'DD-MM-YYYY') AS "PODATE",
@@ -2128,7 +2163,7 @@ export class GrpoService {
         result.items = items;
       }
       const attachments = await executeAndReturnResult(
-        `SELECT "ID","DOCENTRY","ATTACHMENTNAME","LINK" FROM "SRM_GRPO2" T0 WHERE T0."DOCENTRY" = TRIM('${id}');`,
+        `SELECT "ID","DOCENTRY" AS "Doc #","ATTACHMENTNAME","LINK" FROM "SRM_GRPO2" T0 WHERE T0."DOCENTRY" = TRIM('${id}');`,
       );
       // const attachments = await createStatementAndExecute(
       //   ` SELECT "ID","DOCENTRY","ATTACHMENTNAME","LINK" FROM "SRM_GRPO2" T0 WHERE T0."DOCENTRY" = ?`,
@@ -4068,7 +4103,10 @@ export class GrpoService {
             SAPAttachmentLines.map((file) => {
               return { ...file, originalname: file.NAME };
             }),
-          );
+          ).catch((e) => {
+            console.log(e);
+            // throw e;
+          });
           if (result) {
             const { DocEntry: SuccessDocEntry } = result;
             await global.connection.beginTransaction((err) => {

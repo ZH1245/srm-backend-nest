@@ -2,11 +2,14 @@ declare global {
   namespace NodeJS {
     interface ProcessEnv {
       PORT: number;
+      NODE_ENV: 'development' | 'production';
       JWT_SECRET: string;
       // add from .env file
       hana_driver: string;
       hana_host: string;
       hana_dbname: string;
+      schema: string;
+      database: string;
       hana_schema: string;
       hana_uid: string;
       hana_pwd: string;
