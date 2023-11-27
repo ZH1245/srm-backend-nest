@@ -50,7 +50,7 @@ export class UserService {
     const result = await global.connection
       .query(
         `
-        SELECT "ID","NAME", "EMAIL","ROLE","ISACTIVE","ISVERIFIED","CODE","MOBILE" FROM "SRMUSERS";
+        SELECT "ID","NAME", "EMAIL","ROLE","ISACTIVE","ISVERIFIED","CODE","MOBILE", TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT" FROM "SRMUSERS" ORDER BY "NAME" ASC;
       `,
       )
       .catch((e) => {

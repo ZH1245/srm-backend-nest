@@ -175,7 +175,8 @@ export class GrpoService {
           FROM "PCH1" AP1 
           INNER JOIN "OPCH" AP ON AP."DocEntry" = AP1."DocEntry" 
           WHERE TO_VARCHAR(AP1."BaseRef") = TO_VARCHAR(P."DocNum") AND AP1."ItemCode" = p1."ItemCode" AND P1."LineNum" = AP1."BaseLine"  AND AP."DocStatus" <> 'C')       
-          AND (P1."OpenQty" -IFNULL(a."BillQty",0)) > 0 
+          AND (P1."OpenQty" -IFNULL(a."BillQty",0)) > 0
+          ORDER BY P."DocDate" DESC 
          ;`,
         );
         //       const result = await createStatementAndExecute(
@@ -218,7 +219,8 @@ export class GrpoService {
   async getMyCompletedGrpos(user: UserDashboard) {
     try {
       const result = await executeAndReturnResult(
-        `SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" WHERE "VENDORCODE" = TRIM('${user.CODE.trim()}') AND "STATUS" = 'completed';`,
+        `SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE","VENDORCODE",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" WHERE "VENDORCODE" = TRIM('${user.CODE.trim()}') AND "STATUS" = 'completed'
+        ORDER BY "CREATEDAT" DESC;`,
       );
       // const result = await createStatementAndExecute(
       //   'SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),\'DD-MM-YYYY\') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),\'DD-MM-YYYY\') AS "CREATEDAT"  FROM "SRM_OGRPO" WHERE "VENDORCODE" = ? AND "STATUS" = ?',
@@ -242,7 +244,7 @@ export class GrpoService {
   async getMyReadyGrpos(user: UserDashboard) {
     try {
       const result = await executeAndReturnResult(
-        `SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" WHERE "VENDORCODE" = TRIM('${user.CODE.trim()}') AND "STATUS" = 'ready';`,
+        `SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),'DD-MM-YYYY') AS "BILLDATE",TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT"  FROM "SRM_OGRPO" WHERE "VENDORCODE" = TRIM('${user.CODE.trim()}') AND "STATUS" = 'ready' ORDER BY "CREATEDAT" DESC;`,
       );
       // const result = await createStatementAndExecute(
       //   'SELECT "DOCENTRY","BILLNO",TO_VARCHAR(TO_DATE("BILLDATE"),\'DD-MM-YYYY\') AS "BILLDATE","VENDORCODE","STATUS",TO_VARCHAR(TO_DATE("CREATEDAT"),\'DD-MM-YYYY\') AS "CREATEDAT"  FROM "SRM_OGRPO" WHERE "VENDORCODE" = ? AND "STATUS" = ?',
@@ -2101,7 +2103,7 @@ export class GrpoService {
            INNER JOIN "OCRD" V ON G."VENDORCODE" = V."CardCode"
            --WHERE G."STATUS" = 'completed'
             )X
-            ORDER BY X."CREATEDAT"
+            ORDER BY X."CREATEDAT" DESC
           ;`,
         );
         // const result = await createStatementAndExecute(
@@ -2148,9 +2150,9 @@ export class GrpoService {
         PR1."Dscription" AS "ITEMDSC",
         --,"ITEMDSC"
         TO_VARCHAR(TO_DATE("SHIPDATE"),'DD-MM-YYYY') AS "SHIPDATE",
+        "BILLQTY" AS "Quantity",
         PR1."Price" AS "Actual Price",
-        "PRICE" AS "Vendor Price",
-        "BILLQTY" 
+        "PRICE" AS "Vendor Price"
         FROM "SRM_GRPO1" T0 
         LEFT JOIN "OPDN" PR ON T0."GRPONO" = PR."DocNum"
         LEFT JOIN "PDN1" PR1 on T0."ITEMCODE" = PR1."ItemCode" AND PR1."DocEntry" = PR."DocEntry" AND T0."LINENUM" = PR1."LineNum" WHERE T0."DOCENTRY" = TRIM('${id}');`,
