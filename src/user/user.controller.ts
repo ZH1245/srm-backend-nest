@@ -8,6 +8,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
   UseFilters,
   UsePipes,
@@ -20,7 +21,7 @@ import {
   EnableUserDTO,
   VerfityEmailDTO,
 } from './type';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { HttpExceptionFilter } from 'src/http-exception-filter';
 import {
   CreateUserValidatorDTO,
@@ -28,6 +29,7 @@ import {
   UpdateUserValidatorDTO,
 } from './validators';
 import { MyCompletedGRPOSByID } from 'src/grpo/validators';
+import { UserDashboard } from 'src/dashboard/dashboard.controller';
 // -------------------------------------------------------------------------
 /**
  * @class UserController
@@ -52,8 +54,11 @@ export class UserController {
    * @returns A Promise that resolves to an array of user objects.
    */
   @Get('created')
-  async getCreatedUsers(@Res() response: Response): Promise<any> {
-    const result = await this.userService.getCreatedUsers();
+  async getCreatedUsers(
+    @Res() response: Response,
+    @Req() req: Request & { user: UserDashboard },
+  ): Promise<any> {
+    const result = await this.userService.getCreatedUsers(req.user);
     return response.json({ users: result, message: 'success' });
   }
 

@@ -10,6 +10,7 @@ import {
 import { EditUserValidatorDTO } from './validators';
 import { executeAndReturnResult } from 'src/utils/executeAndReturnResult';
 import { EmailService } from 'src/email/email.service';
+import { UserDashboard } from 'src/dashboard/dashboard.controller';
 // -------------------------------------------------------------------------
 
 @Injectable()
@@ -46,11 +47,16 @@ export class UserService {
    * Retrieves a list of users who have already been created.
    * @returns A string indicating the operation performed.
    */
-  async getCreatedUsers() {
+  async getCreatedUsers(user: UserDashboard) {
     const result = await global.connection
       .query(
-        `
-        SELECT "ID","NAME", "EMAIL","ROLE","ISACTIVE","ISVERIFIED","CODE","MOBILE", TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT" FROM "SRMUSERS" ORDER BY "NAME" ASC;
+        `SELECT "ID","NAME", "EMAIL","ROLE","ISACTIVE","ISVERIFIED","CODE","MOBILE", TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') AS "CREATEDAT" FROM "SRMUSERS"
+        ${
+          user.ROLE !== 'admin'
+            ? `WHERE "ROLE" NOT IN ('admin','purchase') `
+            : ''
+        }
+        ORDER BY "NAME" ASC;
       `,
       )
       .catch((e) => {
@@ -258,6 +264,7 @@ export class UserService {
           return await global.connection
             .commit()
             .catch((e) => {
+              console.log(e.message);
               throw new HttpException(e.message, 400);
             })
             .then(async () => {

@@ -2084,7 +2084,7 @@ export class GrpoService {
    */
   async getAllInvoicesFromGrpos(user: UserDashboard) {
     try {
-      if (user.ROLE !== 'admin') {
+      if (user.ROLE === 'user') {
         throw new HttpException('Unauthorized', 401);
       } else {
         const result = await executeAndReturnResult(

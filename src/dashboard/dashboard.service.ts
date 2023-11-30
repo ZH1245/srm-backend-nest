@@ -3,10 +3,12 @@ import { HttpException, Injectable } from '@nestjs/common';
 import { UserDashboard } from './dashboard.controller';
 import type { Result } from 'odbc';
 import { executeAndReturnResult } from 'src/utils/executeAndReturnResult';
+import { YprService } from 'src/ypr/ypr.service';
 // -------------------------------------------------------------------------
 
 @Injectable()
 export class DashboardService {
+  constructor(private readonly yprService: YprService) {}
   /**
    * Retrieves the dashboard data for a vendor user.
    * @param authUser The authenticated user.
@@ -14,7 +16,7 @@ export class DashboardService {
    * @throws HttpException if there is an error executing the SQL query.
    */
   async getVendorDashboard(authUser: UserDashboard) {
-    const counts = { pending: 0, completed: 0, ready: 0 };
+    const counts = { pending: 0, completed: 0, ready: 0, yarnQuotations: 0 };
     try {
       // const result: Result<{ COUNT: string }> = await executeAndReturnResult(
       //   `SELECT COUNT("GRPO#") AS "COUNT"
@@ -143,6 +145,13 @@ export class DashboardService {
       } else {
         counts.completed = 0;
       }
+      const PRQuotations =
+        await executeAndReturnResult(`SELECT COUNT(*) AS "COUNT" FROM "SRM_QUOTATIONS" a
+      WHERE "STATUS" <>'dsm' AND ("PREFVENDORS" LIKE '%${authUser.CODE}%' OR "PREFVENDORS" IS NULL);`);
+      if (PRQuotations.count !== 0) {
+        counts.yarnQuotations = JSON.parse(PRQuotations[0]['COUNT']);
+      }
+
       return counts;
     } catch (e) {
       throw new HttpException(e.message, 400);
@@ -209,6 +218,89 @@ export class DashboardService {
         counts.completedGrpos = JSON.parse(completed[0].COUNT);
       } else {
         counts.completedGrpos = 0;
+      }
+      return counts;
+    } catch (e) {
+      throw new HttpException(e.message, 400);
+    }
+  }
+  /**
+   * Retrieves the counts of users, defected receipts, and completed GRPOs for the admin dashboard.
+   * @returns An object containing the counts of users, defected receipts, and completed GRPOs.
+   * @throws HttpException if there is an error while retrieving the counts.
+   */
+  async getPurchaseDashboard() {
+    const counts = {
+      users: 0,
+      defectedReceipts: 0,
+      completedGrpos: 0,
+      pendingYPRS: 0,
+      PRQuotations: 0,
+    };
+    try {
+      const result: Result<{ COUNT: string }> = await executeAndReturnResult(
+        `SELECT COUNT("ID") AS "COUNT" FROM "SRMUSERS" WHERE "ROLE" NOT IN('admin','purchase')`,
+      );
+      // const result: Result<{ COUNT: string }> = await createStatementAndExecute(
+      //   'SELECT COUNT("ID") AS "COUNT" FROM "SRMUSERS";',
+      //   [],
+      // );
+
+      if (result.count !== 0) {
+        counts.users = JSON.parse(result[0].COUNT);
+        const defected: Result<{ COUNT: string }> =
+          // await executeAndReturnResult(
+          //   `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = 'completed' AND "DRAFTID" IS NULL`,
+          // );
+          await executeAndReturnResult(
+            `SELECT COUNT("DOCENTRY") AS COUNT FROM "SRM_OGRPO" G
+            WHERE G."DOCENTRY" IN (
+            SELECT G1."DOCENTRY" FROM "SRM_GRPO1" G1 
+            WHERE G1."DRAFTID" IS NULL
+            GROUP BY G1."DOCENTRY"
+            HAVING COUNT(G1."DOCENTRY") > 0
+            ) AND G."STATUS" ='completed'`,
+          );
+        if (defected.count !== 0) {
+          counts.defectedReceipts = JSON.parse(defected[0].COUNT);
+        } else {
+          counts.defectedReceipts = 0;
+        }
+      } else {
+        counts.users = 0;
+      }
+
+      // const completed: Result<{ COUNT: string }> = await executeAndReturnResult(
+      //   `SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = 'completed' AND "DRAFTID" IS NOT NULL;`,
+      // );
+      const completed: Result<{ COUNT: string }> = await executeAndReturnResult(
+        `SELECT COUNT("DOCENTRY") AS COUNT FROM "SRM_OGRPO" G
+        WHERE G."DOCENTRY" IN (
+        SELECT G1."DOCENTRY" FROM "SRM_GRPO1" G1 
+        WHERE G1."DRAFTID" IS NOT NULL
+        GROUP BY G1."DOCENTRY"
+        HAVING COUNT(G1."DOCENTRY") > 0
+        ) AND G."STATUS" ='completed';`,
+      );
+      // const completed: Result<{ COUNT: string }> =
+      //   await createStatementAndExecute(
+      //     'SELECT COUNT("DOCENTRY") AS "COUNT" FROM "SRM_OGRPO" WHERE "STATUS" = ?;',
+      //     ['completed'],
+      //   );
+      if (completed.count !== 0) {
+        counts.completedGrpos = JSON.parse(completed[0].COUNT);
+      } else {
+        counts.completedGrpos = 0;
+      }
+      const pendingYPRS = await this.yprService.getPendingYPRsCount();
+      if (pendingYPRS.data) {
+        counts.pendingYPRS = pendingYPRS.data;
+      }
+      const getYPRQuotations = await executeAndReturnResult(`
+        SELECT COUNT("DOCNUM") AS "COUNT" FROM SRM_QUOTATIONS;
+      `);
+      if (getYPRQuotations.count !== 0) {
+        counts.PRQuotations = JSON.parse(getYPRQuotations[0]['COUNT']);
       }
       return counts;
     } catch (e) {

@@ -3,7 +3,7 @@ import { Response } from 'express';
 import { UserDashboard } from 'src/dashboard/dashboard.controller';
 
 @Injectable()
-export class AdminMiddleware implements NestMiddleware {
+export class PurchaseAndAdminMiddleware implements NestMiddleware {
   use(
     req: Request & { user?: UserDashboard },
     res: Response,
@@ -11,7 +11,7 @@ export class AdminMiddleware implements NestMiddleware {
   ) {
     const user = req.user;
     // console.log(user);
-    if (user?.ROLE !== 'admin') {
+    if (user?.ROLE === 'user') {
       throw new HttpException('UnAuthorized', 401);
     } else next();
   }

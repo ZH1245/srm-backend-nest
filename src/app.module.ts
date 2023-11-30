@@ -1,4 +1,4 @@
-import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
+import { MiddlewareConsumer, Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthController } from './auth/auth.controller';
@@ -24,6 +24,10 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { CronjobsService } from './cronjobs/cronjobs.service';
 import { CronjobsModule } from './cronjobs/cronjobs.module';
+import { YprService } from './ypr/ypr.service';
+import { YprController } from './ypr/ypr.controller';
+import { YprModule } from './ypr/ypr.module';
+import { PurchaseAndAdminMiddleware } from './middlewares/PurchaseMiddleware';
 @Module({
   imports: [
     ThrottlerModule.forRoot([
@@ -41,6 +45,7 @@ import { CronjobsModule } from './cronjobs/cronjobs.module';
     SapModule,
     EmailModule,
     CronjobsModule,
+    YprModule,
   ],
   controllers: [
     AppController,
@@ -48,6 +53,7 @@ import { CronjobsModule } from './cronjobs/cronjobs.module';
     UserController,
     DashboardController,
     GrpoController,
+    YprController,
   ],
   providers: [
     AppService,
@@ -58,6 +64,7 @@ import { CronjobsModule } from './cronjobs/cronjobs.module';
     SapService,
     EmailService,
     CronjobsService,
+    YprService,
   ],
 })
 export class AppModule {
@@ -71,9 +78,10 @@ export class AppModule {
       )
       .forRoutes('*');
     consumer
-      .apply(AdminMiddleware)
+      .apply(PurchaseAndAdminMiddleware)
       .forRoutes(
         'dashboard/admin',
+        'dashboard/purchase',
         'user/created',
         'user/not-created',
         'user/disable-user',

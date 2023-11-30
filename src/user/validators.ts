@@ -19,7 +19,7 @@ export class CreateUserValidatorDTO {
   @IsString({ message: 'Role is required' })
   @IsNotEmpty({ message: 'Role is required' })
   @IsNotIn(['undefined', 'null'], { message: 'Role is required' })
-  @IsIn(['admin', 'user'], { message: 'Role is required' })
+  @IsIn(['admin', 'user', 'purchase'], { message: 'Role is required' })
   ROLE: string;
 
   @IsString({ message: 'Mobile is required' })
@@ -82,7 +82,7 @@ export class EditUserValidatorDTO {
   @IsString({ message: 'Role is required' })
   @IsNotEmpty({ message: 'Role is required' })
   @IsNotIn(['undefined', 'null'], { message: 'Role is required' })
-  @IsIn(['admin', 'user'], { message: 'Role is required' })
+  @IsIn(['admin', 'user', 'purchase'], { message: 'Role is required' })
   ROLE: string;
 
   @IsString({ message: 'Mobile is required' })

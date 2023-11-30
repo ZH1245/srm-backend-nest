@@ -24,6 +24,11 @@ export class DashboardController {
     const result = await this.dashboardService.getVendorDashboard(user);
     return res.json({ data: result });
   }
+  @Get('purchase')
+  async getPurchaseDashboard(@Res() res: Response) {
+    const result = await this.dashboardService.getPurchaseDashboard();
+    return res.json({ data: result });
+  }
 
   @Get('admin')
   async getAdminDashboard(@Res() res: Response) {
