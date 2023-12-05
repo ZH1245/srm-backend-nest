@@ -163,7 +163,13 @@ export class DashboardService {
    * @throws HttpException if there is an error while retrieving the counts.
    */
   async getAdminDashboard() {
-    const counts = { users: 0, defectedReceipts: 0, completedGrpos: 0 };
+    const counts = {
+      users: 0,
+      defectedReceipts: 0,
+      completedGrpos: 0,
+      yprQuotations: 0,
+      pendingYPRs: 0,
+    };
     try {
       const result: Result<{ COUNT: string }> = await executeAndReturnResult(
         `SELECT COUNT("ID") AS "COUNT" FROM "SRMUSERS"`,
@@ -218,6 +224,16 @@ export class DashboardService {
         counts.completedGrpos = JSON.parse(completed[0].COUNT);
       } else {
         counts.completedGrpos = 0;
+      }
+      const PRQuotations =
+        await executeAndReturnResult(`SELECT COUNT(*) AS "COUNT" FROM "SRM_QUOTATIONS" a
+      WHERE "STATUS" <>'dsm';`);
+      if (PRQuotations.count !== 0) {
+        counts.yprQuotations = JSON.parse(PRQuotations[0]['COUNT']);
+      }
+      const pendingYPRSCount = await this.yprService.getPendingYPRsCount();
+      if (pendingYPRSCount.data) {
+        counts.pendingYPRs = pendingYPRSCount.data;
       }
       return counts;
     } catch (e) {
@@ -297,7 +313,7 @@ export class DashboardService {
         counts.pendingYPRS = pendingYPRS.data;
       }
       const getYPRQuotations = await executeAndReturnResult(`
-        SELECT COUNT("DOCNUM") AS "COUNT" FROM SRM_QUOTATIONS;
+        SELECT COUNT("DOCNUM") AS "COUNT" FROM SRM_QUOTATIONS WHERE "STATUS" <> 'dsm';
       `);
       if (getYPRQuotations.count !== 0) {
         counts.PRQuotations = JSON.parse(getYPRQuotations[0]['COUNT']);

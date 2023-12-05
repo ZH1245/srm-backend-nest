@@ -1,4 +1,5 @@
 import { HttpException, Injectable } from '@nestjs/common';
+import * as moment from 'moment';
 import { executeAndReturnResult } from 'src/utils/executeAndReturnResult';
 
 @Injectable()
@@ -8,6 +9,9 @@ export class YprService {
       const result = await executeAndReturnResult(`
       SELECT
       "DocNum" AS "YPR#",
+      TO_VARCHAR(TO_DATE(a."U_DocDate"),'DD-MM-YYYY') AS "DocDate",
+      b."U_QtyReq" AS "RequestedQty",
+      b."U_ReqBags" AS "RequestedBags",
       '' AS "Action",
       b."LineId" AS "BASELINE",
       "U_ConeWt" AS "ConeWt",
@@ -64,8 +68,9 @@ export class YprService {
          AND TO_VARCHAR(a."DocNum") = mm."U_YPRNO") 
          AND a."Status" <> 'C'
          AND a."DocNum" NOT IN(SELECT "YPRNO" FROM "SRM_QUOTATIONS")
-     ORDER BY b."LineId",
-      a."DocNum"  
+         AND a."DocNum" <> '831'
+     ORDER BY a."U_Branch",
+      a."DocNum", a."U_DocDate", b."LineId" ;
         `);
       if (result.count !== 0) {
         return { data: result, message: 'Fetched' };
@@ -175,7 +180,16 @@ export class YprService {
           //   console.log(result);
           //   console.log('DOCNUM: ' + DocNum);
           await executeAndReturnResult(
-            `INSERT INTO SRM_QUOTATIONS("DOCNUM","YARNCODE","BRANCH","YPRNO","YARNTYPE","CONEWT","STATUS","BASELINE") VALUES('${DocNum}', '${item.ItemCode}','${item.Branch}','${item['YPR#']}','${item['U_YType']}','${item.ConeWt}','${item.Action}','${item.BASELINE}');`,
+            `INSERT INTO SRM_QUOTATIONS("DOCNUM","YARNCODE","BRANCH","YPRNO","YARNTYPE","CONEWT","STATUS","BASELINE", "CREATEDAT","UPDATEDAT","REQQTY","REQBAGS","DOCDATE") VALUES('${DocNum}', '${
+              item.ItemCode
+            }','${item.Branch}','${item['YPR#']}','${item['U_YType']}','${
+              item.ConeWt
+            }','${item.Action}','${item.BASELINE}',CURRENT_DATE,CURRENT_DATE,'${
+              item.RequestedQty
+            }','${item.RequestedBags}','${moment(
+              item.DocDate,
+              'DD-MM-YYYY',
+            ).format('YYYY-MM-DD')}');`,
             true,
           ).catch((e) => {
             console.log('REJECT');
@@ -211,8 +225,9 @@ export class YprService {
   async getYPRSForVendor(code) {
     try {
       const result = await executeAndReturnResult(
-        `SELECT *,(SELECT "ItemName" FROM "OITM" WHERE "ItemCode" = a."YARNCODE") "YARNDESCRIPTION" FROM "SRM_QUOTATIONS" a
-        WHERE "STATUS" <>'dsm' AND ("PREFVENDORS" LIKE '%${code}%' OR "PREFVENDORS" IS NULL);`,
+        `SELECT  "DOCNUM","YARNCODE","BRANCH","YPRNO","YARNTYPE","CONEWT", "STATUS", "BASELINE", TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') "CREATEDAT",TO_VARCHAR(TO_DATE("DOCDATE"),'DD-MM-YYYY') "DOCDATE", "REQBAGS","REQQTY"  ,(SELECT "ItemName" FROM "OITM" WHERE "ItemCode" = a."YARNCODE") "YARNDESCRIPTION" FROM "SRM_QUOTATIONS" a
+        WHERE "STATUS" <>'dsm' AND ("PREFVENDORS" LIKE '%${code}%' OR "PREFVENDORS" IS NULL)
+        ORDER BY "YPRNO","BRANCH", "DOCDATE";`,
         true,
       );
       if (result.count !== 0) {
@@ -228,7 +243,7 @@ export class YprService {
   async getAllQuotations() {
     try {
       const result = await executeAndReturnResult(`
-    SELECT * FROM "SRM_QUOTATIONS";
+    SELECT "DOCNUM","YARNCODE","BRANCH","YPRNO","YARNTYPE","CONEWT", "STATUS", "BASELINE", TO_VARCHAR(TO_DATE("CREATEDAT"),'DD-MM-YYYY') "CREATEDAT",TO_VARCHAR(TO_DATE("DOCDATE"),'DD-MM-YYYY') "DOCDATE", "REQBAGS","REQQTY" FROM "SRM_QUOTATIONS" WHERE "STATUS" <> 'dsm' ORDER BY "BRANCH","YPRNO";
 `);
       if (result.count !== 0) {
         return { data: result, message: 'Fetched' };
